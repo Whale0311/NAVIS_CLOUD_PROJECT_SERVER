@@ -1,0 +1,277 @@
+/* src/index.css */
+@import "leaflet/dist/leaflet.css";
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+body { 
+    background-color: #050505; /* Reset lại body cho trang Dashboard sau này */
+    color: #ffffff; 
+    overflow-x: hidden;
+}
+
+
+.login-container {
+    background: linear-gradient(to right, rgba(5,5,5,0.9) 0%, rgba(5,5,5,0.4) 100%), url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop') center/cover no-repeat; 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between;
+    min-height: 100vh; 
+    width: 100%;     
+    padding: 0 10%;
+}
+
+.hero-section { max-width: 550px; animation: slideRight 1s ease-out forwards; }
+.brand-title { font-size: 4.5rem; font-weight: 800; color: #10b981; margin-bottom: 20px; text-shadow: 0 0 20px rgba(16, 185, 129, 0.4); letter-spacing: -1px;}
+.brand-subtitle { font-size: 1.8rem; font-weight: 600; margin-bottom: 25px; line-height: 1.4; color: #f8fafc;}
+.brand-desc { font-size: 1.05rem; color: #94a3b8; line-height: 1.6; margin-bottom: 25px; }
+.brand-footer { margin-top: 40px; font-size: 0.85rem; color: #64748b; }
+
+.auth-card { 
+    background: rgba(20, 20, 20, 0.4); 
+    backdrop-filter: blur(20px); 
+    -webkit-backdrop-filter: blur(20px);
+    padding: 50px; 
+    border-radius: 20px; 
+    width: 100%; 
+    max-width: 450px; 
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6); 
+    border: 1px solid rgba(255, 255, 255, 0.1); 
+    animation: slideLeft 1s ease-out forwards;
+    position: relative;
+}
+.auth-card::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.5), transparent);
+}
+
+.auth-header { text-align: center; margin-bottom: 40px; }
+.auth-header h2 { font-size: 2rem; margin-bottom: 10px; letter-spacing: 2px; color: #f8fafc;}
+.auth-header p { color: #94a3b8; font-size: 0.95rem; }
+
+.input-group { margin-bottom: 22px; }
+.input-group label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;}
+.input-group input { 
+    width: 100%; padding: 14px 16px; 
+    background-color: rgba(0,0,0,0.3); 
+    border: 1px solid rgba(255,255,255,0.1); 
+    border-radius: 10px; color: #fff; font-size: 1rem; 
+    transition: all 0.3s ease; 
+}
+.input-group input::placeholder { color: #64748b; }
+.input-group input:focus { outline: none; border-color: #10b981; background-color: rgba(16, 185, 129, 0.05); box-shadow: 0 0 15px rgba(16, 185, 129, 0.15); }
+
+.btn-submit { 
+    width: 100%; padding: 15px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+    border: none; border-radius: 10px; color: white; font-weight: 700; font-size: 1rem; letter-spacing: 1px;
+    cursor: pointer; transition: all 0.3s ease; margin-top: 15px; 
+}
+.btn-submit:hover { transform: translateY(-3px); box-shadow: 0 10px 20px -5px rgba(16, 185, 129, 0.5); }
+
+.auth-switch { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; font-size: 0.9rem; color: #94a3b8; }
+.auth-link { color: #10b981; text-decoration: none; cursor: pointer; font-weight: 600; transition: color 0.3s; }
+.auth-link:hover { color: #34d399; text-shadow: 0 0 8px rgba(52, 211, 153, 0.4);}
+
+.animate-form { animation: slideLeft 0.5s ease-out; }
+
+@keyframes slideRight { from { opacity: 0; transform: translateX(-50px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideLeft { from { opacity: 0; transform: translateX(50px); } to { opacity: 1; transform: translateX(0); } }
+
+/* CẬP NHẬT LẠI MEDIA QUERY */
+@media (max-width: 960px) {
+    .login-container { flex-direction: column; justify-content: center; padding: 20px; }
+    .hero-section { text-align: center; margin-bottom: 40px; }
+    .brand-desc, .brand-footer { display: none; } 
+    .auth-card { width: 100%; padding: 35px 25px; }
+}
+
+        /* Cột Menu */
+        .sidebar { width: 250px; background-color: rgba(18,18,18,0.6); backdrop-filter: blur(20px); border-right: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; z-index: 10; }
+        .logo { padding: 25px 20px; font-size: 1.6rem; font-weight: 800; color: #ffffff; border-bottom: 1px solid rgba(255,255,255,0.05); letter-spacing: 1px;}
+        .nav-menu { list-style: none; padding: 20px 0; flex-grow: 1; }
+        .nav-item { padding: 16px 25px; color: #a3a3a3; cursor: pointer; transition: all 0.3s ease; font-size: 0.95rem; font-weight: 500; display: flex; align-items: center; gap: 12px; border-left: 4px solid transparent; }
+        .nav-item:hover { color: #ffffff; background-color: rgba(255,255,255,0.03); }
+        .nav-item.active { background-color: rgba(16, 185, 129, 0.1); color: #10b981; border-left-color: #10b981; text-shadow: 0 0 10px rgba(16,185,129,0.5); }
+        .logout-btn { padding: 20px 25px; color: #a3a3a3; cursor: pointer; border-top: 1px solid rgba(255,255,255,0.05); transition: 0.3s; }
+        .logout-btn:hover { color: #ef4444; background-color: rgba(239, 68, 68, 0.1); }
+
+        /* Vùng nội dung */
+        /* Thêm position: relative vào main-content để làm hệ quy chiếu */
+.main-content { 
+    flex-grow: 1; 
+    padding: 40px; 
+    overflow-y: auto; 
+    z-index: 1;
+    position: relative; 
+}
+
+/* Ép Map tràn viền tuyệt đối 100% không góc chết */
+.map-page-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #0a0a0a;
+    z-index: 0; /* Đảm bảo bản đồ nằm dưới các Panel nổi */
+}
+        .header-title { font-size: 2rem; font-weight: 700; margin-bottom: 30px; letter-spacing: 1px; color: #e2e8f0; }
+
+        /* Thẻ KPI Glassmorphism */
+        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 25px; margin-bottom: 35px; }
+        .kpi-card { 
+            background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(10px); 
+            padding: 25px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); 
+            text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: transform 0.3s, border-color 0.3s; position: relative; overflow: hidden;
+        }
+        .kpi-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.15); }
+        .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); }
+
+        .kpi-title { font-size: 0.9rem; color: #94a3b8; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;}
+        .kpi-value { font-size: 2.8rem; font-weight: 800; font-family: 'Courier New', Courier, monospace; letter-spacing: -1px; text-shadow: 0 0 20px rgba(255,255,255,0.1); }
+        .val-total { color: #f8fafc; }  
+        .val-conn { color: #10b981; }   
+        .val-cno { color: #06b6d4; }    
+        .val-sat { color: #8b5cf6; }    
+        .kpi-unit { font-size: 1.2rem; font-weight: 500; color: #64748b; font-family: 'Segoe UI'; }
+
+        /* Khung Biểu đồ */
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        .chart-card { 
+            background: rgba(20, 20, 20, 0.6); backdrop-filter: blur(10px);
+            padding: 25px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); 
+            height: 380px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .chart-title { font-size: 1rem; font-weight: 600; color: #e2e8f0; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;}
+        .chart-container { flex-grow: 1; position: relative; }
+/* ========================================= */
+/* CSS DÀNH RIÊNG CHO TRANG MAP (BẢN ĐỒ)     */
+/* ========================================= */
+
+
+
+/* Hiệu ứng Dark Mode cho bản đồ Leaflet */
+.dark-map-filter { 
+    filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7); 
+}
+
+/* --- Panel nổi --- */
+.floating-panel {
+    position: absolute; 
+    background: rgba(18, 18, 18, 0.8); 
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.08); 
+    border-radius: 12px; 
+    padding: 20px; 
+    z-index: 999;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6); 
+    display: flex; 
+    flex-direction: column;
+    transform: translateZ(0); 
+    backface-visibility: hidden; 
+    perspective: 1000px;
+}
+
+.panel-left { top: 20px; left: 20px; width: 300px; bottom: 20px; }
+.panel-header { font-size: 1rem; font-weight: bold; color: #10b981; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px;}
+
+.device-item { background: rgba(255,255,255,0.03); padding: 12px 15px; border-radius: 8px; cursor: pointer; transition: 0.2s; border: 1px solid transparent; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;}
+.device-item:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.1); }
+.device-item.active { background: rgba(16, 185, 129, 0.1); border-color: #10b981; }
+.device-badge { font-size: 0.7rem; padding: 3px 6px; border-radius: 4px; font-weight: bold; text-transform: uppercase;}
+.badge-ubx { background: #3b82f620; color: #60a5fa; border: 1px solid #3b82f640; }
+.badge-rtcm { background: #8b5cf620; color: #a78bfa; border: 1px solid #8b5cf640; }
+
+.panel-right { 
+    top: 20px; right: 20px; width: 380px; display: none; bottom: 20px;
+    opacity: 0; transform: translateX(20px) translateZ(0); transition: opacity 0.3s ease, transform 0.3s ease;
+    will-change: transform, opacity;
+}
+.panel-right.show {
+    display: flex; opacity: 1; transform: translateX(0) translateZ(0);
+} 
+
+.detail-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.detail-label { color: #a3a3a3; font-size: 0.9rem; position: relative; border-bottom: 1px dotted #555; }
+.detail-label.has-tooltip { cursor: help; }
+
+/* Tooltip */
+.detail-label .context-desc {
+    visibility: hidden; width: 320px; background-color: rgba(30, 30, 30, 0.95); backdrop-filter: blur(10px); color: #e2e8f0;
+    text-align: left; padding: 15px; border-radius: 8px; border: 1px solid #10b981;
+    position: absolute; z-index: 1001; 
+    top: -15px; right: 100%; margin-right: 15px;
+    box-shadow: -10px 10px 30px rgba(0,0,0,0.6); font-weight: normal; font-size: 0.85rem; line-height: 1.5; opacity: 0; transition: opacity 0.3s;
+}
+.detail-label .context-desc::after { 
+    content: ""; position: absolute; top: 20px; left: 100%; 
+    border-width: 6px; border-style: solid; border-color: transparent transparent transparent #10b981; 
+}
+.detail-label:hover .context-desc { visibility: visible; opacity: 1; }
+.detail-value { font-weight: bold; font-size: 1.1rem; }
+
+.scrollable-signals { flex-grow: 1; overflow-y: auto; padding-right: 10px; margin-right: -10px; margin-bottom: 15px; }
+.scrollable-signals::-webkit-scrollbar { width: 5px; }
+.scrollable-signals::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 3px; }
+.scrollable-signals::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+.scrollable-signals::-webkit-scrollbar-thumb:hover { background: #10b981; }
+
+.signal-item { margin-top: 12px; }
+.signal-header { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 5px; color: #e2e8f0;}
+.progress-bg { width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+.progress-bar { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+
+.legend-block { margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 0.8rem; color: #a3a3a3; }
+.legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.legend-item { display: flex; align-items: center; gap: 8px; }
+.color-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+.pulse-marker { width: 22px; height: 22px; background: #10b981; border-radius: 50%; box-shadow: 0 0 0 rgba(16, 185, 129, 0.4); animation: pulse 2s infinite; border: 3px solid white; cursor: pointer;}
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { box-shadow: 0 0 0 18px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+/* ========================================= */
+/* CSS CHO THẺ KPI DASHBOARD                 */
+/* ========================================= */
+.kpi-card { 
+    background: rgba(255, 255, 255, 0.02); 
+    backdrop-filter: blur(10px); 
+    padding: 25px; 
+    border-radius: 16px; 
+    border: 1px solid rgba(255,255,255,0.05); 
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    display: flex; 
+    flex-direction: column; 
+    gap: 15px; 
+    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; 
+    position: relative; 
+    overflow: hidden;
+}
+
+/* Hiệu ứng nổi lên khi di chuột */
+.kpi-card:hover { 
+    transform: translateY(-5px); 
+    border-color: rgba(255,255,255,0.2); 
+    box-shadow: 0 15px 40px rgba(16, 185, 129, 0.15); /* Thêm vầng sáng xanh lá nhạt cho ngầu */
+}
+
+/* Đường viền ánh sáng mỏng ở cạnh trên của thẻ */
+.kpi-card::before { 
+    content: ''; 
+    position: absolute; 
+    top: 0; left: 0; 
+    width: 100%; height: 2px; 
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); 
+}
+/* Marker khi mất kết nối: Màu xám, không có hiệu ứng pulse */
+.offline-marker { 
+    width: 22px; 
+    height: 22px; 
+    background: #737373; 
+    border-radius: 50%; 
+    border: 3px solid #404040; 
+    cursor: pointer;
+    filter: grayscale(1);
+    opacity: 0.6;
+}
