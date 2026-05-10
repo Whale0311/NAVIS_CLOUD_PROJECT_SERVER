@@ -1,9 +1,14 @@
+import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+load_dotenv()
+# Lấy URL từ biến môi trường, nếu không thấy thì dùng giá trị mặc định (tùy chọn)
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Chuỗi kết nối Postgres: postgresql://<user>:<password>@<host>:<port>/<db_name>
-SQLALCHEMY_DATABASE_URL = "postgresql://navis_admin:navis_password_123@localhost:5432/navis_cloud"
+if not SQLALCHEMY_DATABASE_URL:
+    raise ValueError("DATABASE_URL không được tìm thấy trong file .env")
 
 # Tạo động cơ kết nối
 engine = create_engine(SQLALCHEMY_DATABASE_URL)

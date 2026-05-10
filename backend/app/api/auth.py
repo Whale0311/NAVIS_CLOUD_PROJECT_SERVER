@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -8,12 +10,14 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from pydantic import BaseModel
 from typing import List
+load_dotenv()
 router = APIRouter()
 
 @router.post("/api/register")
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    correct_code = os.getenv("INVITATION_CODE")
     # 1. KIỂM TRA MÃ XÁC NHẬN TẠI BACKEND (Bảo mật tuyệt đối)
-    if user.invitation_code != "123456":
+    if user.invitation_code != correct_code:
         raise HTTPException(status_code=400, detail="Mã xác nhận không hợp lệ hoặc đã hết hạn!")
 
     # 2. Kiểm tra email trùng

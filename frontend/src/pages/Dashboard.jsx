@@ -6,10 +6,12 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { Cpu, Wifi, Activity, Satellite } from 'lucide-react';
-// Đăng ký các module cho ChartJS
+
+// Cập nhật màu sắc ChartJS theo tone Dark Mode mới
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
-ChartJS.defaults.color = '#a3a3a3';
-ChartJS.defaults.borderColor = 'rgba(255,255,255,0.05)';
+ChartJS.defaults.color = '#8b8d93'; // Màu chữ xám nhạt
+ChartJS.defaults.borderColor = 'rgba(255, 255, 255, 0.04)'; // Đường kẻ mờ
+ChartJS.defaults.font.family = "'Inter', sans-serif";
 
 const Dashboard = () => {
     // State quản lý KPI
@@ -23,12 +25,11 @@ const Dashboard = () => {
     });
 
     useEffect(() => {
-        let isMounted = true; // Tránh lỗi memory leak khi chuyển trang nhanh
+        let isMounted = true; 
 
         const fetchDashboardData = async () => {
             const token = localStorage.getItem("navis_token");
             try {
-                // 1. Fetch danh sách thiết bị
                 const response = await fetch("http://127.0.0.1:8000/api/devices", {
                     method: "GET",
                     headers: { "Authorization": `Bearer ${token}` }
@@ -41,7 +42,6 @@ const Dashboard = () => {
                 }
                 const dbDevices = await response.json();
 
-                // Hàm helper kiểm tra Timeout (15s) ngay tại đây
                 const checkIsOnline = (timestamp) => {
                     if (!timestamp) return false;
                     let rawTime = timestamp;
@@ -49,7 +49,6 @@ const Dashboard = () => {
                     return (new Date().getTime() - new Date(rawTime).getTime()) < 15000;
                 };
 
-                // 2. Fetch Telemetry song song
                 const telemetryPromises = dbDevices.map(async (dev) => {
                     try {
                         const telRes = await fetch(`http://127.0.0.1:8000/api/devices/${dev.device_id}/telemetry?limit=1`, {
@@ -59,14 +58,12 @@ const Dashboard = () => {
                         if (telRes.ok) {
                             const telData = await telRes.json();
                             if (telData && telData.length > 0) {
-                                // Kiểm tra xem gói tin này là mới hay cũ
                                 const isOnline = checkIsOnline(telData[0].timestamp);
-                                
                                 return {
                                     name: dev.device_id,
-                                    is_active: isOnline, // Đếm thiết bị Online thực sự
-                                    cno: isOnline ? (telData[0].avg_cno || 0) : 0, // Offline thì ép về 0
-                                    sat: isOnline ? (telData[0].sat_count || 0) : 0  // Offline thì ép về 0
+                                    is_active: isOnline, 
+                                    cno: isOnline ? (telData[0].avg_cno || 0) : 0, 
+                                    sat: isOnline ? (telData[0].sat_count || 0) : 0  
                                 };
                             }
                         }
@@ -77,7 +74,6 @@ const Dashboard = () => {
 
                 const devicesWithTelemetry = await Promise.all(telemetryPromises);
                 
-                // 3. Tính toán và Cập nhật State
                 if (isMounted) updateDashboard(devicesWithTelemetry);
 
             } catch (error) { console.error("Lỗi kết nối Server:", error); }
@@ -112,92 +108,107 @@ const Dashboard = () => {
             setChartData({ labels, cnoData, satData });
         };
 
-        // GỌI LẦN ĐẦU VÀ THIẾT LẬP VÒNG LẶP (5 GIÂY / LẦN)
         fetchDashboardData();
         const intervalId = setInterval(fetchDashboardData, 5000);
 
-        // DỌN DẸP BỘ NHỚ KHI RỜI KHỎI TRANG
         return () => { 
             isMounted = false; 
             clearInterval(intervalId); 
         };
     }, []);
 
-    // Tùy chỉnh hiển thị Biểu đồ
+    // Tùy chỉnh màu biểu đồ sang Xanh Lime Neon
     const cnoChartConfig = {
         labels: chartData.labels,
-        datasets: [{ label: 'CN₀ (dB-Hz)', data: chartData.cnoData, backgroundColor: '#10b981', borderRadius: 4 }]
+        datasets: [{ 
+            label: 'CN₀ (dB-Hz)', 
+            data: chartData.cnoData, 
+            backgroundColor: '#10b981', // <--- Sửa ở đây
+            borderRadius: 6,
+            barThickness: 24
+        }]
     };
+    
     const satChartConfig = {
         labels: chartData.labels,
-        datasets: [{ label: 'Số vệ tinh', data: chartData.satData, backgroundColor: '#06b6d4', borderRadius: 4 }]
+        datasets: [{ 
+            label: 'Số vệ tinh', 
+            data: chartData.satData, 
+            backgroundColor: '#3b3f46', 
+            hoverBackgroundColor: '#10b981', // <--- Sửa hiệu ứng hover ở đây
+            borderRadius: 6,
+            barThickness: 24
+        }]
     };
-    const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
+    
+    const chartOptions = { 
+        responsive: true, 
+        maintainAspectRatio: false, 
+        plugins: { legend: { display: false } } 
+    };
 
     return (
         <Layout>
-            <div className="header-title">GNSS Dashboard</div>
-            
-            {/* THIẾT KẾ THẺ KPI MỚI */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '25px', marginBottom: '35px' }}>
+            <div className="dashboard-container">
+                <div className="header-section">
+                    <h1 className="header-title">Overview</h1>
+                </div>
                 
-                {/* Thẻ 1: Tổng thiết bị */}
-                <div className="kpi-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#94a3b8', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                        <span>Tổng thiết bị</span>
-                        <Cpu size={22} color="#f8fafc" />
+                {/* THIẾT KẾ THẺ KPI MỚI */}
+                <div className="kpi-grid">
+                    
+                    {/* Thẻ 1: Tổng thiết bị */}
+                    <div className="kpi-card">
+                        <div className="kpi-header">
+                            <span>Tổng thiết bị</span>
+                            <Cpu size={18} color="#8b8d93" />
+                        </div>
+                        <div className="kpi-value">{kpi.total}</div>
                     </div>
-                    <div style={{ fontSize: '2.6rem', fontWeight: '800', color: '#f8fafc', letterSpacing: '-1px' }}>
-                        {kpi.total}
+
+                    {/* Thẻ 2: Đã kết nối */}
+                    <div className="kpi-card">
+                        <div className="kpi-header">
+                            <span>Đã kết nối</span>
+                            <Wifi size={18} color="#10b981" /> 
+                        </div>
+                        <div className="kpi-value highlight">{kpi.conn}</div>
+                    </div>
+
+                    {/* Thẻ 3 */}
+                    <div className="kpi-card">
+                        <div className="kpi-header">
+                            <span>CN₀ TB Hệ thống</span>
+                            <Activity size={18} color="#8b8d93" />
+                        </div>
+                        <div className="kpi-value-group">
+                            <span className="kpi-value">{kpi.cno}</span>
+                            <span className="kpi-unit">dB-Hz</span>
+                        </div>
+                    </div>
+
+                    {/* Thẻ 4 */}
+                    <div className="kpi-card">
+                        <div className="kpi-header">
+                            <span>Vệ tinh Tracking</span>
+                            <Satellite size={18} color="#8b8d93" />
+                        </div>
+                        <div className="kpi-value">{kpi.sat}</div>
                     </div>
                 </div>
 
-                {/* Thẻ 2: Đã kết nối */}
-                <div className="kpi-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#94a3b8', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                        <span>Đã kết nối</span>
-                        <Wifi size={22} color="#10b981" />
+                <div className="chart-grid">
+                    <div className="chart-card">
+                        <div className="chart-title">CN₀ Trung Bình Theo Thiết Bị</div>
+                        <div className="chart-container">
+                            <Bar data={cnoChartConfig} options={{...chartOptions, scales: { y: { beginAtZero: true, max: 60 } }}} />
+                        </div>
                     </div>
-                    <div style={{ fontSize: '2.6rem', fontWeight: '800', color: '#10b981', letterSpacing: '-1px' }}>
-                        {kpi.conn}
-                    </div>
-                </div>
-
-                {/* Thẻ 3: C/N0 Trung bình */}
-                <div className="kpi-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#94a3b8', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                        <span>CN₀ TB Hệ thống</span>
-                        <Activity size={22} color="#06b6d4" />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                        <span style={{ fontSize: '2.6rem', fontWeight: '800', color: '#06b6d4', letterSpacing: '-1px' }}>{kpi.cno}</span>
-                        <span style={{ fontSize: '1rem', fontWeight: '600', color: '#64748b' }}>dB-Hz</span>
-                    </div>
-                </div>
-
-                {/* Thẻ 4: Vệ tinh Tracking */}
-                <div className="kpi-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#94a3b8', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                        <span>Vệ tinh Tracking</span>
-                        <Satellite size={22} color="#8b5cf6" />
-                    </div>
-                    <div style={{ fontSize: '2.6rem', fontWeight: '800', color: '#8b5cf6', letterSpacing: '-1px' }}>
-                        {kpi.sat}
-                    </div>
-                </div>
-            </div>
-
-            <div className="chart-grid">
-                <div className="chart-card">
-                    <div className="chart-title">CN₀ Trung Bình Theo Thiết Bị</div>
-                    <div className="chart-container">
-                        <Bar data={cnoChartConfig} options={{...chartOptions, scales: { y: { beginAtZero: true, max: 60 } }}} />
-                    </div>
-                </div>
-                <div className="chart-card">
-                    <div className="chart-title" style={{ color: '#06b6d4' }}>Số Lượng Vệ Tinh Theo Thiết Bị</div>
-                    <div className="chart-container">
-                        <Bar data={satChartConfig} options={{...chartOptions, scales: { y: { beginAtZero: true, max: 40 } }}} />
+                    <div className="chart-card">
+                        <div className="chart-title">Số Lượng Vệ Tinh Theo Thiết Bị</div>
+                        <div className="chart-container">
+                            <Bar data={satChartConfig} options={{...chartOptions, scales: { y: { beginAtZero: true, max: 40 } }}} />
+                        </div>
                     </div>
                 </div>
             </div>

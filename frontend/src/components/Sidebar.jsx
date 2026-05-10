@@ -1,12 +1,15 @@
 // src/components/Sidebar.jsx
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { 
+    LayoutDashboard, Map as MapIcon, BarChart2, 
+    Cpu, Bell, Users, LogOut 
+} from 'lucide-react';
 
 const Sidebar = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Hàm lấy Role từ JWT Token
     const getUserRole = () => {
         try {
             const token = localStorage.getItem("navis_token");
@@ -27,34 +30,58 @@ const Sidebar = () => {
         navigate('/');
     };
 
-    // Hàm kiểm tra menu nào đang được chọn
     const getNavItemClass = (path) => {
         return location.pathname === path ? "nav-item active" : "nav-item";
     };
 
     return (
         <div className="sidebar">
-            <div className="logo">Navis-cloud</div>
+            {/* LOGO ĐÃ ĐƯỢC LÀM NỔI BẬT */}
+            <div className="sidebar-header">
+                <div className="logo-brand">
+                    NAVIS<span className="logo-highlight">-CLOUD</span>
+                </div>
+            </div>
             
-            {/* Các menu chính */}
             <ul className="nav-menu">
-                <li className={getNavItemClass('/dashboard')} onClick={() => navigate('/dashboard')}>⊞ DASHBOARD</li>
-                <li className={getNavItemClass('/map')} onClick={() => navigate('/map')}>🗺 MAP</li>
-                <li className={getNavItemClass('/charts')} onClick={() => navigate('/charts')}>📈 CHARTS</li>
-                <li className={getNavItemClass('/devices')} onClick={() => navigate('/devices')}>🎛 DEVICES</li>
-                <li className={getNavItemClass('/alarms')} onClick={() => navigate('/alarms')}>🔔 ALARMS</li>
+                <li className={getNavItemClass('/dashboard')} onClick={() => navigate('/dashboard')}>
+                    <LayoutDashboard size={22} className="nav-icon" />
+                    <span>Overview</span>
+                </li>
+                <li className={getNavItemClass('/map')} onClick={() => navigate('/map')}>
+                    <MapIcon size={22} className="nav-icon" />
+                    <span>Map</span>
+                </li>
+                <li className={getNavItemClass('/charts')} onClick={() => navigate('/charts')}>
+                    <BarChart2 size={22} className="nav-icon" />
+                    <span>Charts</span>
+                </li>
                 
-                {/* Menu Admin nằm ngay dưới Alarms và giữ nguyên style như các tab khác */}
+                {/* Một đường kẻ mờ nhỏ để phân cách nhẹ nhàng thay vì dùng chữ */}
+                <div className="menu-divider"></div>
+
+                <li className={getNavItemClass('/devices')} onClick={() => navigate('/devices')}>
+                    <Cpu size={22} className="nav-icon" />
+                    <span>Devices</span>
+                </li>
+                <li className={getNavItemClass('/alarms')} onClick={() => navigate('/alarms')}>
+                    <Bell size={22} className="nav-icon" />
+                    <span>Alarms</span>
+                </li>
+                
                 {isAdmin && (
                     <li className={getNavItemClass('/users')} onClick={() => navigate('/users')}>
-                        👥 USERS
+                        <Users size={22} className="nav-icon" />
+                        <span>Users Manage</span>
                     </li>
                 )}
             </ul>
 
-            {/* Chỉ có nút Logout bị ép xuống dưới cùng */}
-            <div style={{ marginTop: 'auto' }}>
-                <div className="logout-btn" onClick={handleLogout}>🚪 LOG OUT</div>
+            <div className="sidebar-footer">
+                <div className="nav-item logout-btn" onClick={handleLogout}>
+                    <LogOut size={22} className="nav-icon" />
+                    <span>Log Out</span>
+                </div>
             </div>
         </div>
     );

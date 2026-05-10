@@ -1,3 +1,4 @@
+// src/pages/Charts.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import Layout from '../components/Layout';
 import {
@@ -5,22 +6,21 @@ import {
 } from 'chart.js';
 import { Line, PolarArea } from 'react-chartjs-2';
 
-// --- CÁCH IMPORT BAO ĐẬM CHO VITE ---
+// --- IMPORT CHO PLOTLY ---
 import Plotly from 'plotly.js-dist';
 import factory from 'react-plotly.js/factory';
 
 const createPlotlyComponent = factory.default || factory;
 const Plot = createPlotlyComponent(Plotly);
 
-// Đăng ký các thư viện cho Chart.js
+// Đăng ký các thư viện cho Chart.js và cấu hình màu Dark Mode đồng bộ
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler, RadialLinearScale, ArcElement);
-ChartJS.defaults.color = '#94a3b8';
-ChartJS.defaults.borderColor = 'rgba(255,255,255,0.05)';
-ChartJS.defaults.font.family = "'Segoe UI', Tahoma, sans-serif";
+ChartJS.defaults.color = '#8b8d93'; // Màu chữ xám nhạt
+ChartJS.defaults.borderColor = 'rgba(255, 255, 255, 0.04)'; // Đường lưới mờ
+ChartJS.defaults.font.family = "'Inter', system-ui, sans-serif";
 
 const MAX_HISTORY = 60;
 
-// 1. Hàm Helper (Đưa lên trên cùng để các hàm bên dưới gọi được)
 const calculateSkyplot = (signals) => {
     let counts = [0, 0, 0, 0];
     (signals || []).forEach(s => {
@@ -45,7 +45,6 @@ const Charts = () => {
         historyBuffer: Array(MAX_HISTORY).fill({ time: '', signals: {} })
     });
 
-    // 2. Hàm xử lý Telemetry Real-time
     const processNewTelemetry = (apiData) => {
         let rawTime = apiData.timestamp;
         if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
@@ -68,7 +67,6 @@ const Charts = () => {
         });
     };
 
-    // 3. Load danh sách thiết bị
     useEffect(() => {
         const loadDevices = async () => {
             const token = localStorage.getItem("navis_token");
@@ -85,7 +83,6 @@ const Charts = () => {
         loadDevices();
     }, []);
 
-    // 4. Quản lý luồng dữ liệu (Lịch sử + Polling)
     useEffect(() => {
         if (!selectedDeviceId) return;
 
@@ -129,7 +126,6 @@ const Charts = () => {
                     lastTelemetryIdRef.current = history[history.length - 1].id;
                 }
 
-                // Bắt đầu vòng lặp Real-time
                 intervalId = setInterval(async () => {
                     try {
                         const liveRes = await fetch(`http://127.0.0.1:8000/api/devices/${selectedDeviceId}/telemetry?limit=1`, {
@@ -174,7 +170,7 @@ const Charts = () => {
         datasets: [{
             label: 'Avg C/N₀',
             data: chartState.trendData,
-            borderColor: '#10b981',
+            borderColor: '#10b981', // Màu xanh ngọc dạ quang
             backgroundColor: 'rgba(16, 185, 129, 0.1)',
             borderWidth: 2.5, fill: true, tension: 0.3, pointRadius: 0
         }]
@@ -184,8 +180,10 @@ const Charts = () => {
         labels: ['GPS (G)', 'GLONASS (R)', 'Galileo (E)', 'BeiDou (B)'],
         datasets: [{
             data: chartState.skyplotCounts,
-            backgroundColor: ['rgba(251, 191, 36, 0.7)','rgba(239, 68, 68, 0.7)','rgba(59, 130, 246, 0.7)','rgba(16, 185, 129, 0.7)'],
-            borderColor: '#141414', borderWidth: 3
+            // Các màu vệ tinh tùy chỉnh, thêm viền đậm cùng màu nền card (#1c1e22) để tạo độ sắc nét
+            backgroundColor: ['rgba(251, 191, 36, 0.8)','rgba(239, 68, 68, 0.8)','rgba(59, 130, 246, 0.8)','rgba(16, 185, 129, 0.8)'],
+            borderColor: '#1c1e22', 
+            borderWidth: 3
         }]
     };
 
@@ -197,43 +195,60 @@ const Charts = () => {
 
     return (
         <Layout>
-            <div className="control-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', background: 'rgba(255,255,255,0.02)', padding: '15px 25px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#e2e8f0' }}>Data Analytics</div>
-                    <select value={selectedDeviceId} onChange={handleDeviceChange} style={{ background: 'rgba(0,0,0,0.4)', color: '#10b981', border: '1px solid #10b981', padding: '8px 15px', borderRadius: '8px', outline: 'none' }}>
-                        {devices.map(dev => (
-                            <option key={dev.device_id} value={dev.device_id} style={{ background: '#1a1a1a', color: '#fff' }}>
-                                {dev.device_id} ({dev.device_type || 'Unknown'})
-                            </option>
-                        ))}
-                    </select>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: 'bold', padding: '6px 12px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', color: isLive ? '#ef4444' : '#a3a3a3', background: isLive ? 'rgba(239, 68, 68, 0.1)' : 'transparent' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isLive ? '#ef4444' : '#a3a3a3' }}></div>
-                    {isLive ? 'LIVE STREAM ACTIVE' : 'WAITING FOR DATA'}
-                </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '25px' }}>
-                <div style={{ gridColumn: 'span 2', background: 'rgba(20, 20, 20, 0.6)', padding: '25px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#10b981', textAlign: 'center', marginBottom: '15px' }}>Spectrum Waterfall (Real-time)</div>
-                    <Plot
-                        data={[{ z: zMatrix, x: xLabels, y: yLabels, type: 'heatmap', colorscale: 'Jet', zsmooth: 'best', zmin: 15, zmax: 55, showscale: true, colorbar: { tickfont: {color: '#a3a3a3'}, thickness: 15 } }]}
-                        layout={{ margin: { t: 20, r: 20, b: 40, l: 80 }, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', xaxis: { tickfont: {color: '#a3a3a3', size: 10}, gridcolor: 'rgba(0,0,0,0)', tickangle: -45 }, yaxis: { tickfont: {color: '#a3a3a3', size: 10}, gridcolor: 'rgba(0,0,0,0)', autorange: 'reversed' } }}
-                        useResizeHandler={true} style={{ width: '100%', height: '400px' }} config={{ displayModeBar: false }}
-                    />
+            <div className="dashboard-container">
+                {/* Tiêu đề trang */}
+                <div className="header-section">
+                    <h1 className="header-title">Data Analytics</h1>
                 </div>
 
-                <div style={{ background: 'rgba(20, 20, 20, 0.6)', padding: '25px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', height: '350px', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '15px' }}>Average C/N₀ Trend</div>
-                    <div style={{ flexGrow: 1, position: 'relative' }}>
-                        <Line data={trendConfig} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { min: 15, max: 60 }, x: { grid: { display: false } } }, plugins: { legend: { display: false } }, animation: { duration: 0 } }} />
+                {/* Thanh Control Bar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', backgroundColor: '#1c1e22', padding: '16px 24px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <span style={{ fontSize: '1rem', fontWeight: '500', color: '#8b8d93' }}>Select Device:</span>
+                        <select 
+                            value={selectedDeviceId} 
+                            onChange={handleDeviceChange} 
+                            style={{ backgroundColor: '#131517', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.5)', padding: '10px 16px', borderRadius: '10px', outline: 'none', fontWeight: '600', cursor: 'pointer' }}
+                        >
+                            {devices.map(dev => (
+                                <option key={dev.device_id} value={dev.device_id} style={{ backgroundColor: '#1c1e22', color: '#fff' }}>
+                                    {dev.device_id} ({dev.device_type || 'Unknown'})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: '700', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', color: isLive ? '#ef4444' : '#8b8d93', backgroundColor: isLive ? 'rgba(239, 68, 68, 0.1)' : 'transparent' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isLive ? '#ef4444' : '#8b8d93' }}></div>
+                        {isLive ? 'LIVE STREAM ACTIVE' : 'WAITING FOR DATA'}
                     </div>
                 </div>
 
-                <div style={{ background: 'rgba(20, 20, 20, 0.6)', padding: '25px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', height: '350px', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '15px' }}>Skyplot Tracking (Constellations)</div>
-                                            {/* Tìm đến phần Skyplot Radar và cập nhật thuộc tính options */}
+                {/* Grid chứa Biểu đồ */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+                    
+                    {/* Plotly Heatmap (Chiếm 3 cột nếu muốn tràn ngang, hoặc 2 cột tùy ý) */}
+                    <div className="chart-card" style={{ gridColumn: 'span 3', height: '450px', display: 'flex', flexDirection: 'column' }}>
+                        <div className="chart-title">Spectrum Waterfall (Real-time)</div>
+                        <div style={{ flexGrow: 1, position: 'relative' }}>
+                            <Plot
+                                data={[{ z: zMatrix, x: xLabels, y: yLabels, type: 'heatmap', colorscale: 'Jet', zsmooth: 'best', zmin: 15, zmax: 55, showscale: true, colorbar: { tickfont: {color: '#8b8d93'}, thickness: 15 } }]}
+                                layout={{ margin: { t: 10, r: 20, b: 40, l: 60 }, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', xaxis: { tickfont: {color: '#8b8d93', size: 11}, gridcolor: 'rgba(255,255,255,0.03)', tickangle: -45 }, yaxis: { tickfont: {color: '#8b8d93', size: 11}, gridcolor: 'rgba(255,255,255,0.03)', autorange: 'reversed' } }}
+                                useResizeHandler={true} style={{ width: '100%', height: '100%' }} config={{ displayModeBar: false }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Biểu đồ Line */}
+                    <div className="chart-card" style={{ gridColumn: 'span 2', height: '350px', display: 'flex', flexDirection: 'column' }}>
+                        <div className="chart-title">Average C/N₀ Trend</div>
+                        <div style={{ flexGrow: 1, position: 'relative' }}>
+                            <Line data={trendConfig} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { min: 15, max: 60 }, x: { grid: { display: false } } }, plugins: { legend: { display: false } }, animation: { duration: 0 } }} />
+                        </div>
+                    </div>
+
+                    {/* Biểu đồ Radar/Polar Area */}
+                    <div className="chart-card" style={{ gridColumn: 'span 1', height: '350px', display: 'flex', flexDirection: 'column' }}>
+                        <div className="chart-title">Skyplot Tracking</div>
                         <div style={{ flexGrow: 1, position: 'relative' }}>
                             <PolarArea 
                                 data={skyplotConfig} 
@@ -242,23 +257,21 @@ const Charts = () => {
                                     maintainAspectRatio: false, 
                                     plugins: { 
                                         legend: { 
-                                            position: 'right',
-                                            labels: { color: '#e2e8f0' }
+                                            position: 'bottom', // Đưa legend xuống dưới cho gọn trên màn nhỏ
+                                            labels: { color: '#e2e8f0', padding: 15, usePointStyle: true }
                                         } 
                                     }, 
                                     scales: { 
                                         r: { 
-                                            // 1. Ẩn các con số (1, 2, 3...) ở trục tâm
                                             ticks: { display: false }, 
-                                            // 2. Làm mờ các đường lưới vòng tròn để làm nổi bật các rẻ quạt
                                             grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                                            // 3. Đường kẻ phân vùng (angle lines)
-                                            angleLines: { color: 'rgba(255, 255, 255, 0.1)' }
+                                            angleLines: { color: 'rgba(255, 255, 255, 0.05)' }
                                         } 
                                     } 
                                 }} 
                             />
                         </div>
+                    </div>
                 </div>
             </div>
         </Layout>

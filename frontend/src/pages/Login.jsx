@@ -1,23 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+// Import thư viện thông báo và style
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+// Component Icon Con Mắt (Mở) - Neon `#10b981`
+const EyeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+    </svg>
+);
+
+// Component Icon Con Mắt (Đóng/Gạch chéo) - Neon `#10b981`
+const EyeOffIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+        <line x1="1" y1="1" x2="23" y2="23"></line>
+    </svg>
+);
 
 const Login = () => {
     const navigate = useNavigate();
-    // State quản lý việc hiển thị Form nào
-    const [currentForm, setCurrentForm] = useState('login'); // 'login' | 'register' | 'forgot'
+    const [currentForm, setCurrentForm] = useState('login'); 
     
-    // State quản lý dữ liệu người dùng nhập
     const [formData, setFormData] = useState({
         email: '', password: '', confirmPass: '', code: ''
     });
 
-    // Tự động chuyển hướng nếu đã có token
+    // States quản lý hiển thị mật khẩu
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPass, setShowConfirmPass] = useState(false);
+    const [showCode, setShowCode] = useState(false);
+
     useEffect(() => {
         const token = localStorage.getItem("navis_token");
         if (token) navigate('/dashboard');
     }, [navigate]);
 
-    // Hàm xử lý khi gõ vào ô input
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
@@ -28,8 +48,8 @@ const Login = () => {
     };
 
     const handleLogin = async () => {
-        if (!formData.email || !formData.password) return alert("Vui lòng nhập đầy đủ thông tin!");
-        if (!validateEmail(formData.email)) return alert("Định dạng email không hợp lệ!");
+        if (!formData.email || !formData.password) return toast.warning("Vui lòng nhập đầy đủ thông tin!");
+        if (!validateEmail(formData.email)) return toast.error("Định dạng email không hợp lệ!");
         
         try {
             const response = await fetch("http://127.0.0.1:8000/api/login", {
@@ -40,18 +60,19 @@ const Login = () => {
             const data = await response.json();
             if (response.ok) {
                 localStorage.setItem("navis_token", data.access_token);
-                navigate('/dashboard'); // Chuyển trang bằng React Router
+                toast.success("Đăng nhập thành công!");
+                navigate('/dashboard'); 
             } else {
-                alert("Lỗi: " + data.detail);
+                toast.error("Lỗi: " + data.detail);
             }
-        } catch (error) { alert("Lỗi kết nối Server!"); }
+        } catch (error) { toast.error("Lỗi kết nối Server!"); }
     };
 
     const handleRegister = async () => {
         const { email, password, confirmPass, code } = formData;
-        if(!email || !password || !confirmPass || !code) return alert("Vui lòng điền đủ thông tin!");
-        if(!validateEmail(email)) return alert("Định dạng email không hợp lệ!");
-        if(password !== confirmPass) return alert("Mật khẩu xác nhận không khớp!");
+        if(!email || !password || !confirmPass || !code) return toast.warning("Vui lòng điền đủ thông tin!");
+        if(!validateEmail(email)) return toast.error("Định dạng email không hợp lệ!");
+        if(password !== confirmPass) return toast.error("Mật khẩu xác nhận không khớp!");
         
         try {
             const response = await fetch("http://127.0.0.1:8000/api/register", {
@@ -61,17 +82,17 @@ const Login = () => {
             });
             const data = await response.json();
             if (response.ok) {
-                alert("Tạo tài khoản thành công! Xin mời đăng nhập.");
+                toast.success("Tạo tài khoản thành công! Xin mời đăng nhập.");
                 setCurrentForm('login');
             } else {
-                alert("Lỗi: " + data.detail); 
+                toast.error("Lỗi: " + data.detail); 
             }
-        } catch (error) { alert("Lỗi kết nối Server!"); }
+        } catch (error) { toast.error("Lỗi kết nối Server!"); }
     };
 
     const handleForgot = async () => {
-        if(!formData.email) return alert("Vui lòng nhập Email!");
-        if(!validateEmail(formData.email)) return alert("Định dạng email không hợp lệ!");
+        if(!formData.email) return toast.warning("Vui lòng nhập Email!");
+        if(!validateEmail(formData.email)) return toast.error("Định dạng email không hợp lệ!");
         
         try {
             const response = await fetch("http://127.0.0.1:8000/api/forgot-password", {
@@ -81,14 +102,34 @@ const Login = () => {
             });
             const data = await response.json();
             if (response.ok) {
-                alert(data.message);
+                toast.success(data.message);
                 setCurrentForm('login');
-            } else { alert("Lỗi: " + data.detail); }
-        } catch (error) { alert("Lỗi kết nối Server!"); }
+            } else { toast.error("Lỗi: " + data.detail); }
+        } catch (error) { toast.error("Lỗi kết nối Server!"); }
+    };
+
+    // Style inline cho wrapper chứa input và icon (bọc input bằng div, div position relative, input padding-right, icon position absolute, v.v.)
+    const inputWrapperStyle = {
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center'
+    };
+
+    const iconStyle = {
+        position: 'absolute',
+        right: '12px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '5px' // Tăng vùng click cho icon
     };
 
     return (
         <>
+            {/* Cấu hình Toastify: theme="dark" để hợp với Navis-Cloud */}
+            <ToastContainer position="top-right" autoClose={3000} theme="dark" />
+            
             <div className="login-container">
             <div className="hero-section">
                 <h1 className="brand-title">Navis-Cloud</h1>
@@ -99,6 +140,7 @@ const Login = () => {
             </div>
 
             <div className="auth-card">
+                {/* FORM ĐĂNG NHẬP */}
                 {currentForm === 'login' && (
                     <div className="animate-form">
                         <div className="auth-header">
@@ -111,7 +153,19 @@ const Login = () => {
                         </div>
                         <div className="input-group">
                             <label>Password</label>
-                            <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Enter your password" />
+                            <div style={inputWrapperStyle}>
+                                <input 
+                                    type={showPassword ? "text" : "password"} 
+                                    name="password" 
+                                    value={formData.password} 
+                                    onChange={handleChange} 
+                                    placeholder="Enter your password" 
+                                    style={{ width: '100%', paddingRight: '40px' }} // Chừa chỗ cho icon
+                                />
+                                <span style={iconStyle} onClick={() => setShowPassword(!showPassword)}>
+                                    {showPassword ? <EyeIcon /> : <EyeOffIcon />}
+                                </span>
+                            </div>
                         </div>
                         <button className="btn-submit" onClick={handleLogin}>LOGIN</button>
                         <div className="auth-switch">
@@ -120,6 +174,7 @@ const Login = () => {
                     </div>
                 )}
 
+                {/* FORM ĐĂNG KÝ */}
                 {currentForm === 'register' && (
                     <div className="animate-form">
                         <div className="auth-header">
@@ -132,15 +187,51 @@ const Login = () => {
                         </div>
                         <div className="input-group">
                             <label>Password</label>
-                            <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Create a password" />
+                            <div style={inputWrapperStyle}>
+                                <input 
+                                    type={showPassword ? "text" : "password"} 
+                                    name="password" 
+                                    value={formData.password} 
+                                    onChange={handleChange} 
+                                    placeholder="Create a password" 
+                                    style={{ width: '100%', paddingRight: '40px' }}
+                                />
+                                <span style={iconStyle} onClick={() => setShowPassword(!showPassword)}>
+                                    {showPassword ? <EyeIcon /> : <EyeOffIcon />}
+                                </span>
+                            </div>
                         </div>
                         <div className="input-group">
                             <label>Confirm Password</label>
-                            <input type="password" name="confirmPass" value={formData.confirmPass} onChange={handleChange} placeholder="Confirm your password" />
+                            <div style={inputWrapperStyle}>
+                                <input 
+                                    type={showConfirmPass ? "text" : "password"} 
+                                    name="confirmPass" 
+                                    value={formData.confirmPass} 
+                                    onChange={handleChange} 
+                                    placeholder="Confirm your password" 
+                                    style={{ width: '100%', paddingRight: '40px' }}
+                                />
+                                <span style={iconStyle} onClick={() => setShowConfirmPass(!showConfirmPass)}>
+                                    {showConfirmPass ? <EyeIcon /> : <EyeOffIcon />}
+                                </span>
+                            </div>
                         </div>
                         <div className="input-group">
                             <label>Invitation Code</label>
-                            <input type="text" name="code" value={formData.code} onChange={handleChange} placeholder="Nhập mã xác nhận" />
+                            <div style={inputWrapperStyle}>
+                                <input 
+                                    type={showCode ? "text" : "password"} 
+                                    name="code" 
+                                    value={formData.code} 
+                                    onChange={handleChange} 
+                                    placeholder="Nhập mã xác nhận" 
+                                    style={{ width: '100%', paddingRight: '40px' }}
+                                />
+                                <span style={iconStyle} onClick={() => setShowCode(!showCode)}>
+                                    {showCode ? <EyeIcon /> : <EyeOffIcon />}
+                                </span>
+                            </div>
                         </div>
                         <button className="btn-submit" onClick={handleRegister}>REGISTER</button>
                         <div className="auth-switch">
@@ -149,6 +240,7 @@ const Login = () => {
                     </div>
                 )}
 
+                {/* FORM QUÊN MẬT KHẨU */}
                 {currentForm === 'forgot' && (
                     <div className="animate-form">
                         <div className="auth-header">
