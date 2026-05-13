@@ -19,10 +19,21 @@ class DeviceBase(BaseModel):
     device_id: str
     name: str
     device_type: str
+    site_id: str = "default_site"
     latitude: float | None = None
     longitude: float | None = None
     is_active: bool = True
+class RawFileResponse(BaseModel):
+    id: int
+    device_id: int
+    timestamp: datetime
+    seq: int
+    data_type: str
+    file_name: str # Chúng ta sẽ bóc tách từ file_path
+    file_size_bytes: int
 
+    class Config:
+        from_attributes = True
 class DeviceCreate(DeviceBase):
     pass
 

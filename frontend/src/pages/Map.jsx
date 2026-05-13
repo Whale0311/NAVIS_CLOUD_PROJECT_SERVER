@@ -23,6 +23,11 @@ const MapPage = () => {
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [isLoadingTele, setIsLoadingTele] = useState(false);
 
+    // Dùng Ref để lưu trữ trạng thái mà không bị "đóng băng" trong các callback của WebSocket
+    const devicesRef = useRef([]);
+    const selectedDeviceIdRef = useRef(null); 
+    const wsConnectionsRef = useRef([]);
+
     const checkIsOnline = (timestamp) => {
         if (!timestamp) return false;
         let rawTime = timestamp;
@@ -32,75 +37,125 @@ const MapPage = () => {
 
     const isCurrentlyOnline = telemetryData ? checkIsOnline(telemetryData.timestamp) : false;
 
-    // 1. POLLING DANH SÁCH THIẾT BỊ (Mỗi 5 giây)
+    // 1. LẤY DANH SÁCH & BẬT RADAR WEBSOCKET CHO TOÀN BỘ BẢN ĐỒ
     useEffect(() => {
-        const fetchDevices = async () => {
+        let isMounted = true;
+        
+        const fetchDevicesAndSetupWS = async () => {
             const token = localStorage.getItem("navis_token");
             try {
+                // Lấy vị trí tĩnh 1 lần khi load trang
                 const response = await fetch("http://127.0.0.1:8000/api/devices", {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
                 if (!response.ok) return;
                 const dbDevices = await response.json();
-                setDevices(dbDevices);
+                
+                if (isMounted) {
+                    devicesRef.current = dbDevices;
+                    setDevices(dbDevices);
+                    setupWebSockets(dbDevices);
+                }
             } catch (error) { console.error("Lỗi tải thiết bị:", error); }
         };
-        fetchDevices();
-        const intervalId = setInterval(fetchDevices, 5000);
-        return () => clearInterval(intervalId);
-    }, []);
 
-    // 2. POLLING TELEMETRY CHO THIẾT BỊ ĐANG CHỌN (Mỗi 2 giây)
-    // Giúp cập nhật Online ngay khi bật Simulator mà không cần click lại
-    useEffect(() => {
-        if (!selectedDevice) return;
+        const setupWebSockets = (deviceList) => {
+            // Dọn dẹp ống nước cũ trước khi nối ống mới
+            wsConnectionsRef.current.forEach(ws => ws.close());
+            wsConnectionsRef.current = [];
 
-        const fetchCurrentTelemetry = async () => {
-            const token = localStorage.getItem("navis_token");
-            try {
-                const res = await fetch(`http://127.0.0.1:8000/api/devices/${selectedDevice.device_id}/telemetry?limit=1`, {
-                    headers: { "Authorization": `Bearer ${token}` }
-                });
-                const telData = await res.json();
-                if (telData && telData.length > 0) {
-                    const latest = telData[0];
-                    setTelemetryData(latest);
-
-                    // CHỐNG RUNG BẢN ĐỒ: Chỉ flyTo nếu vị trí dịch chuyển đáng kể (> 0.00001 độ ~ 1 mét)
-                    if (mapRef.current && latest.lat && latest.lon) {
-                        const currentCenter = mapRef.current.getCenter();
-                        const distLat = Math.abs(currentCenter.lat - latest.lat);
-                        const distLon = Math.abs(currentCenter.lng - latest.lon);
+            deviceList.forEach(dev => {
+                const ws = new WebSocket(`ws://localhost:8000/ws/devices/${dev.device_id}`);
+                
+                ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    
+                    // KHI CÓ TỌA ĐỘ MỚI TỪ BẤT KỲ XE NÀO
+                    if (msg.event_type === "position_update" || msg.event_type === "telemetry_update") {
                         
-                        if (distLat > 0.00002 || distLon > 0.00002) {
-                            mapRef.current.flyTo([latest.lat, latest.lon], 17, { duration: 1.5 });
+                        // 1. Cập nhật vị trí Marker của xe đó trên bản đồ
+                        devicesRef.current = devicesRef.current.map(d => {
+                            if (d.device_id === msg.device_id) {
+                                return {
+                                    ...d,
+                                    latitude: msg.data.lat_deg || msg.data.lat || d.latitude,
+                                    longitude: msg.data.lon_deg || msg.data.lon || d.longitude,
+                                    last_seen: new Date().toISOString() // Đánh dấu xe vừa online
+                                };
+                            }
+                            return d;
+                        });
+                        setDevices([...devicesRef.current]);
+
+                        // 2. NẾU XE NÀY ĐANG ĐƯỢC NGƯỜI DÙNG CLICK XEM CHI TIẾT
+                        if (selectedDeviceIdRef.current === msg.device_id) {
+                            
+                            // Cập nhật CNO/SAT vào bảng Panel bên phải
+                            setTelemetryData(prev => ({
+                                ...prev,
+                                ...msg.data,
+                                timestamp: new Date().toISOString()
+                            }));
+
+                            // Camera tự động bám theo xe (Chống rung bản đồ)
+                            const lat = msg.data.lat_deg || msg.data.lat;
+                            const lon = msg.data.lon_deg || msg.data.lon;
+                            if (mapRef.current && lat && lon) {
+                                const currentCenter = mapRef.current.getCenter();
+                                const distLat = Math.abs(currentCenter.lat - lat);
+                                const distLon = Math.abs(currentCenter.lng - lon);
+                                
+                                if (distLat > 0.00002 || distLon > 0.00002) {
+                                    mapRef.current.flyTo([lat, lon], 17, { duration: 1.5 });
+                                }
+                            }
                         }
                     }
-                }
-            } catch (error) { console.error("Lỗi cập nhật tín hiệu:", error); }
+                };
+                wsConnectionsRef.current.push(ws);
+            });
         };
 
-        fetchCurrentTelemetry();
-        const intervalId = setInterval(fetchCurrentTelemetry, 2000); 
-        return () => clearInterval(intervalId);
-    }, [selectedDevice]);
+        fetchDevicesAndSetupWS();
 
-    const handleSelectDevice = (dev) => {
-        // 1. Reset dữ liệu viễn trắc của thiết bị cũ ngay lập tức
-        setTelemetryData(null); 
+        return () => {
+            isMounted = false;
+            wsConnectionsRef.current.forEach(ws => ws.close());
+        };
+    }, []);
+
+
+    // 2. XỬ LÝ KHI CLICK VÀO 1 XE TRÊN BẢN ĐỒ
+    const handleSelectDevice = async (dev) => {
+        // Cập nhật ID để WebSocket biết xe nào đang được ưu tiên
+        selectedDeviceIdRef.current = dev.device_id;
         
-        // XOÁ HOẶC COMMENT DÒNG DƯỚI ĐÂY:
-        // setIsLive(false); <--- Xoá dòng này vì Map.jsx không có biến này
-        
-        // 2. Cập nhật thiết bị đang chọn
         setSelectedDevice(dev);
         setIsPanelOpen(true);
         setIsLoadingTele(true);
 
-        // Giữ nguyên logic flyTo...
-        if (mapRef.current) {
-            const targetLatLng = L.latLng(dev.latitude || 21.005, dev.longitude || 105.844);
-            mapRef.current.flyTo(targetLatLng, 17, { duration: 1.5 });
+        // FlyTo ngay lập tức tới vị trí cuối cùng đã biết
+        if (mapRef.current && dev.latitude && dev.longitude) {
+            mapRef.current.flyTo([dev.latitude, dev.longitude], 17, { duration: 1.5 });
+        }
+
+        // Gọi API 1 lần duy nhất để lấy lịch sử sóng CNO/SAT cũ điền vào bảng
+        // Sau đó WebSocket sẽ tự động bơm data mới vào (không cần setInterval nữa)
+        const token = localStorage.getItem("navis_token");
+        try {
+            const res = await fetch(`http://127.0.0.1:8000/api/devices/${dev.device_id}/telemetry?limit=1`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            const telData = await res.json();
+            if (telData && telData.length > 0) {
+                setTelemetryData(telData[0]);
+            } else {
+                setTelemetryData(null);
+            }
+        } catch (error) { 
+            console.error("Lỗi lấy thông tin viễn trắc:", error); 
+        } finally {
+            setIsLoadingTele(false);
         }
     };
 

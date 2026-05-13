@@ -15,7 +15,9 @@ class MQTTConfig:
         ("gnss/+/+/raw/ublox/v1", 1),           # Raw u-blox frames
         ("gnss/+/+/detect/epoch/v1", 1),        # Detection results (Main data)
         ("gnss/+/+/state/position/v1", 1),      # Position state
-        ("gnss/+/+/health/v1", 1),              # Health metrics
+        ("gnss/+/+/health/v1", 1),
+        ("gnss/+/+/cmd/init/v1", 1),           # Mạch báo cáo online
+        ("gnss/+/+/cmd/ack/v1", 1),              # Health metrics
     ]
     
     CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "navis-backend-subscriber")

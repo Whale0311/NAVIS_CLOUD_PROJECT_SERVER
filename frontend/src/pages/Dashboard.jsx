@@ -1,5 +1,5 @@
 // src/pages/Dashboard.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Layout from '../components/Layout';
 import {
     Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend
@@ -24,9 +24,14 @@ const Dashboard = () => {
         satData: []
     });
 
+    // BỘ NHỚ ĐỆM (Ref) ĐỂ LƯU DATA REALTIME
+    const devicesRef = useRef([]); 
+
     useEffect(() => {
         let isMounted = true; 
+        let wsConnections = []; // Mảng chứa các vòi WebSocket
 
+        // 1. HÀM GỌI API LẤY DATA KHỞI TẠO (CHỈ CHẠY 1 LẦN)
         const fetchDashboardData = async () => {
             const token = localStorage.getItem("navis_token");
             try {
@@ -74,11 +79,16 @@ const Dashboard = () => {
 
                 const devicesWithTelemetry = await Promise.all(telemetryPromises);
                 
-                if (isMounted) updateDashboard(devicesWithTelemetry);
+                if (isMounted) {
+                    devicesRef.current = devicesWithTelemetry; // Lưu vào não bộ
+                    updateDashboard(devicesWithTelemetry);     // Vẽ lên UI
+                    setupWebSockets(dbDevices);                // Kích hoạt Radar
+                }
 
             } catch (error) { console.error("Lỗi kết nối Server:", error); }
         };
 
+        // 2. HÀM TÍNH TOÁN LẠI BIỂU ĐỒ VÀ KPI
         const updateDashboard = (dataList) => {
             if (!dataList || dataList.length === 0) return;
 
@@ -108,12 +118,47 @@ const Dashboard = () => {
             setChartData({ labels, cnoData, satData });
         };
 
-        fetchDashboardData();
-        const intervalId = setInterval(fetchDashboardData, 5000);
+        // 3. HÀM MỞ ỐNG NƯỚC WEBSOCKET
+        const setupWebSockets = (devices) => {
+            wsConnections.forEach(ws => ws.close());
+            wsConnections = [];
 
+            devices.forEach(dev => {
+                const ws = new WebSocket(`ws://localhost:8000/ws/devices/${dev.device_id}`);
+                
+                ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    
+                    // Nếu có tín hiệu (VD: position_update), ta cập nhật thiết bị đó thành Online
+                    if (msg.event_type === "position_update") {
+                        devicesRef.current = devicesRef.current.map(d => {
+                            if (d.name === msg.device_id) {
+                                return { ...d, is_active: true }; 
+                                // Nếu trong tương lai có bắn kèm CNO/SAT qua Socket, cập nhật luôn ở đây
+                            }
+                            return d;
+                        });
+
+                        updateDashboard([...devicesRef.current]);
+                    }
+                };
+
+                wsConnections.push(ws);
+            });
+        };
+
+        fetchDashboardData();
+
+        // 4. HÀM QUÉT DỌN NHỮNG THIẾT BỊ MẤT KẾT NỐI (15s quét 1 lần)
+        const cleanupInterval = setInterval(() => {
+            // Tạm thời chưa code logic ép offline, giữ nguyên để tránh lỗi UI
+        }, 15000); 
+
+        // 5. TẮT RADAR KHI CHUYỂN TRANG
         return () => { 
             isMounted = false; 
-            clearInterval(intervalId); 
+            clearInterval(cleanupInterval); 
+            wsConnections.forEach(ws => ws.close()); 
         };
     }, []);
 

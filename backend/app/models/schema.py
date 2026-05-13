@@ -25,12 +25,13 @@ class Device(Base):
 
     is_active = Column(Boolean, default=True)
     last_seen = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    
+    site_id = Column(String, default="default_site", index=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User", back_populates="devices")
     
     telemetries = relationship("Telemetry", back_populates="device", cascade="all, delete-orphan")
     alarms = relationship("Alarm", back_populates="device", cascade="all, delete-orphan")
+    raw_data_logs = relationship("RawDataLog", back_populates="device", cascade="all, delete-orphan")
 
 class Telemetry(Base):
     __tablename__ = "telemetries"
@@ -72,3 +73,18 @@ class Alarm(Base):
     resolved_at = Column(DateTime, nullable=True)
 
     device = relationship("Device", back_populates="alarms")
+class RawDataLog(Base):
+    """Bảng lưu trữ siêu dữ liệu (metadata) của các file Raw u-blox/SDR"""
+    __tablename__ = "raw_data_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(Integer, ForeignKey("devices.id")) # Liên kết với bảng Device
+    
+    timestamp = Column(DateTime(timezone=True), index=True) # Thời gian event_time
+    seq = Column(Integer) # Lưu lại seq để theo dõi
+    data_type = Column(String) # Phân loại: "ublox" hoặc "sdr"
+    
+    # QUAN TRỌNG NHẤT: Đường dẫn tới file vật lý trên server
+    file_path = Column(String) 
+    file_size_bytes = Column(Integer) # Kích thước file để hiển thị lên Web
+    device = relationship("Device", back_populates="raw_data_logs")

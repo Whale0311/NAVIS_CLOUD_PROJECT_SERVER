@@ -36,37 +36,46 @@ const Charts = () => {
     const [devices, setDevices] = useState([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState('');
     const [isLive, setIsLive] = useState(false);
-    const lastTelemetryIdRef = useRef(null);
-
-    const [chartState, setChartState] = useState({
+    
+    // Tích hợp Ref để chứa dữ liệu không bị "đóng băng" khi nhận WebSocket
+    const chartStateRef = useRef({
         trendLabels: Array(MAX_HISTORY).fill('--:--'),
         trendData: Array(MAX_HISTORY).fill(null),
         skyplotCounts: [0, 0, 0, 0],
         historyBuffer: Array(MAX_HISTORY).fill({ time: '', signals: {} })
     });
+    const wsRef = useRef(null); // Ref để chứa ống nước
+
+    const [chartState, setChartState] = useState(chartStateRef.current);
 
     const processNewTelemetry = (apiData) => {
-        let rawTime = apiData.timestamp;
+        let rawTime = apiData.timestamp || new Date().toISOString();
         if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
         const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
         const signals = apiData.signals_data || [];
 
-        setChartState(prevState => {
-            const newLabels = [...prevState.trendLabels.slice(1), timeStr];
-            const newData = [...prevState.trendData.slice(1), apiData.avg_cno];
-            let sigMap = {};
-            signals.forEach(s => sigMap[s.prn] = s.cno);
-            const newBuffer = [{ time: timeStr, signals: sigMap }, ...prevState.historyBuffer.slice(0, -1)];
+        // Thao tác thẳng trên Ref để tránh lỗi closure của WebSocket
+        const curr = chartStateRef.current;
+        const newLabels = [...curr.trendLabels.slice(1), timeStr];
+        const newData = [...curr.trendData.slice(1), apiData.avg_cno || 0];
+        
+        let sigMap = {};
+        signals.forEach(s => sigMap[s.prn] = s.cno);
+        const newBuffer = [{ time: timeStr, signals: sigMap }, ...curr.historyBuffer.slice(0, -1)];
 
-            return {
-                trendLabels: newLabels,
-                trendData: newData,
-                skyplotCounts: calculateSkyplot(signals),
-                historyBuffer: newBuffer
-            };
-        });
+        chartStateRef.current = {
+            trendLabels: newLabels,
+            trendData: newData,
+            skyplotCounts: calculateSkyplot(signals),
+            historyBuffer: newBuffer
+        };
+
+        // Sau khi tính toán trên bộ não (Ref), ta ra lệnh cho UI (State) vẽ lại
+        setChartState({ ...chartStateRef.current });
+        setIsLive(true); // Nhận được data = Đang Live
     };
 
+    // 1. CHẠY 1 LẦN DUY NHẤT LẤY DANH SÁCH THIẾT BỊ
     useEffect(() => {
         const loadDevices = async () => {
             const token = localStorage.getItem("navis_token");
@@ -83,14 +92,27 @@ const Charts = () => {
         loadDevices();
     }, []);
 
+    // 2. KHI CHỌN THIẾT BỊ -> LẤY LỊCH SỬ (1 LẦN) VÀ BẬT WEBSOCKET LẮNG NGHE LIVES
     useEffect(() => {
         if (!selectedDeviceId) return;
 
-        let intervalId;
-        const token = localStorage.getItem("navis_token");
+        // Đóng ống nước cũ nếu ông đổi xe khác
+        if (wsRef.current) wsRef.current.close();
+        
+        // Reset lại biểu đồ trắng trước khi load xe mới
+        chartStateRef.current = {
+            trendLabels: Array(MAX_HISTORY).fill('--:--'),
+            trendData: Array(MAX_HISTORY).fill(null),
+            skyplotCounts: [0, 0, 0, 0],
+            historyBuffer: Array(MAX_HISTORY).fill({ time: '', signals: {} })
+        };
+        setChartState(chartStateRef.current);
+        setIsLive(false);
 
         const loadHistoryAndStartLive = async () => {
+            const token = localStorage.getItem("navis_token");
             try {
+                // A. Gọi API lấy 60 điểm lịch sử gần nhất đắp vào biểu đồ
                 const res = await fetch(`http://127.0.0.1:8000/api/devices/${selectedDeviceId}/telemetry?limit=${MAX_HISTORY}`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
@@ -107,7 +129,7 @@ const Charts = () => {
                         if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
                         const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
                         labels.push(timeStr);
-                        dataPoints.push(item.avg_cno);
+                        dataPoints.push(item.avg_cno || 0);
                         let sigMap = {};
                         (item.signals_data || []).forEach(s => sigMap[s.prn] = s.cno);
                         buffer.unshift({ time: timeStr, signals: sigMap });
@@ -117,39 +139,37 @@ const Charts = () => {
                     while (dataPoints.length < MAX_HISTORY) dataPoints.unshift(null);
                     while (buffer.length < MAX_HISTORY) buffer.push({ time: '', signals: {} });
 
-                    setChartState({
+                    chartStateRef.current = {
                         trendLabels: labels,
                         trendData: dataPoints,
                         skyplotCounts: calculateSkyplot(history[history.length - 1].signals_data),
                         historyBuffer: buffer
-                    });
-                    lastTelemetryIdRef.current = history[history.length - 1].id;
+                    };
+                    setChartState({ ...chartStateRef.current });
                 }
 
-                intervalId = setInterval(async () => {
-                    try {
-                        const liveRes = await fetch(`http://127.0.0.1:8000/api/devices/${selectedDeviceId}/telemetry?limit=1`, {
-                            headers: { "Authorization": `Bearer ${token}` }
-                        });
-                        const liveData = await liveRes.json();
-                        if (liveData && liveData.length > 0) {
-                            const latest = liveData[0];
-                            let rTime = latest.timestamp;
-                            if (!rTime.endsWith('Z') && !rTime.includes('+')) rTime += 'Z';
-                            setIsLive((new Date().getTime() - new Date(rTime).getTime()) < 15000);
+                // B. BẬT WEBSOCKET THAY THẾ CHO setInterval
+                wsRef.current = new WebSocket(`ws://localhost:8000/ws/devices/${selectedDeviceId}`);
+                
+                wsRef.current.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    
+                    // Nếu xe gửi cập nhật CNO/SAT (hoặc tọa độ có kèm CNO) -> Vẽ thêm 1 điểm vào cuối biểu đồ
+                    if (msg.event_type === "telemetry_update" || msg.event_type === "position_update") {
+                        // Gọi hàm nhồi data vào cuối mảng, biểu đồ sẽ tự động tịnh tiến sang trái
+                        processNewTelemetry(msg.data); 
+                    }
+                };
 
-                            if (latest.id !== lastTelemetryIdRef.current) {
-                                lastTelemetryIdRef.current = latest.id;
-                                processNewTelemetry(latest);
-                            }
-                        }
-                    } catch (err) { setIsLive(false); }
-                }, 1000);
             } catch (e) { console.error("Lỗi nạp dữ liệu", e); }
         };
 
         loadHistoryAndStartLive();
-        return () => { if (intervalId) clearInterval(intervalId); };
+
+        // 3. Tắt Radar dọn dẹp khi chuyển xe khác hoặc thoát trang
+        return () => {
+            if (wsRef.current) wsRef.current.close();
+        };
     }, [selectedDeviceId]);
 
     const handleDeviceChange = (e) => {

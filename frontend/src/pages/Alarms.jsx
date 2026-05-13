@@ -1,5 +1,5 @@
 // src/pages/Alarms.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { BellRing, AlertOctagon, AlertTriangle, CheckCircle, ShieldAlert } from 'lucide-react';
@@ -12,8 +12,9 @@ const API_URL = "http://127.0.0.1:8000/api/alarms";
 const Alarms = () => {
     const navigate = useNavigate();
     const [alarms, setAlarms] = useState([]);
+    const wsConnectionsRef = useRef([]); // Lưu trữ các ống nước WebSocket
 
-    // Hàm lấy dữ liệu từ Backend
+    // 1. HÀM TẢI DỮ LIỆU TỪ DB (Chỉ gọi khi load trang hoặc khi có báo động mới)
     const loadAlarms = async () => {
         const token = localStorage.getItem("navis_token");
         try {
@@ -32,15 +33,63 @@ const Alarms = () => {
             setAlarms(data);
         } catch (error) {
             console.error("Lỗi tải cảnh báo:", error);
-            // Không dùng toast ở đây để tránh spam thông báo mỗi 5s nếu mất mạng tạm thời
         }
     };
 
-    // Load lần đầu và thiết lập quét tự động mỗi 5 giây
+    // 2. KÍCH HOẠT RADAR WEBSOCKET ĐỂ NGHE CẢNH BÁO
+    const setupWebSockets = async () => {
+        const token = localStorage.getItem("navis_token");
+        try {
+            // Lấy danh sách thiết bị trước để biết phải nghe ai
+            const devRes = await fetch("http://127.0.0.1:8000/api/devices", {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (!devRes.ok) return;
+            const devices = await devRes.json();
+
+            // Dọn dẹp kết nối cũ
+            wsConnectionsRef.current.forEach(ws => ws.close());
+            wsConnectionsRef.current = [];
+
+            devices.forEach(dev => {
+                const ws = new WebSocket(`ws://localhost:8000/ws/devices/${dev.device_id}`);
+                
+                ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    
+                    // NẾU LÀ SỰ KIỆN CẢNH BÁO (Tùy backend của ông định nghĩa tên sự kiện là gì, ví dụ: alarm_trigger, spoofing, jamming...)
+                    if (msg.event_type === "alarm" || msg.event_type === "spoofing_detected") {
+                        
+                        // 1. Gọi lại API để kéo dữ liệu cảnh báo mới nhất từ DB (vì nó chứa ID chính xác)
+                        loadAlarms();
+                        
+                        // 2. Bắn thông báo ĐỎ CHÓT giật gân trên màn hình
+                        toast.error(
+                            <div>
+                                <strong>🚨 BÁO ĐỘNG TỪ {dev.device_id}</strong>
+                                <br/>
+                                {msg.data.message || 'Phát hiện tín hiệu bất thường!'}
+                            </div>, 
+                            { theme: "colored", autoClose: false } // autoClose: false bắt người dùng phải tự bấm tắt
+                        );
+                    }
+                };
+                wsConnectionsRef.current.push(ws);
+            });
+        } catch (error) { console.error("Lỗi cài đặt WebSocket:", error); }
+    };
+
+    // Khởi chạy khi vào trang
     useEffect(() => {
-        loadAlarms();
-        const intervalId = setInterval(loadAlarms, 5000);
-        return () => clearInterval(intervalId);
+        let isMounted = true;
+        if (isMounted) {
+            loadAlarms();
+            setupWebSockets();
+        }
+        return () => {
+            isMounted = false;
+            wsConnectionsRef.current.forEach(ws => ws.close());
+        };
     }, [navigate]);
 
     // Xử lý cảnh báo (Đánh dấu đã giải quyết)
@@ -81,7 +130,6 @@ const Alarms = () => {
         if (severity === 'Warning') return { background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)' };
         return { background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' };
     };
-
     return (
         <Layout>
             <ToastContainer position="top-right" autoClose={3000} theme="dark" />

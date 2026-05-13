@@ -2,8 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { HardDrive, LineChart, Trash2, X, Plus, Search } from 'lucide-react';
-// Import thư viện thông báo xịn xò
+import { HardDrive, LineChart, Trash2, X, Plus, Search, Settings } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -201,6 +200,16 @@ const Devices = () => {
                                             </td>
                                             <td style={{ padding: '18px 10px', textAlign: 'right' }}>
                                                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                                    {/* ==== THÊM NÚT NÀY VÀO ĐẦU TIÊN ==== */}
+                                                    <button 
+                                                        onClick={() => navigate(`/devices/${dev.device_id}`)}
+                                                        style={{ background: 'rgba(59, 130, 246, 0.1)', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', color: '#3b82f6', transition: 'all 0.2s' }}
+                                                        title="Quản lý chi tiết"
+                                                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'}
+                                                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'}
+                                                    >
+                                                        <Settings size={18} />
+                                                    </button>
                                                     <button 
                                                         onClick={() => navigate(`/charts?id=${dev.device_id}`)}
                                                         style={{ background: 'rgba(16, 185, 129, 0.1)', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', color: '#10b981', transition: 'all 0.2s' }}

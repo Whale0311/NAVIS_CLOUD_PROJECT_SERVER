@@ -2,15 +2,19 @@
 MQTT Subscriber Worker
 Lắng nghe dữ liệu từ MQTT broker và lưu vào database
 """
+import requests
 import sys
 import os
 import paho.mqtt.client as mqtt
 from datetime import datetime, timezone
 import json
-
+import base64
 # 1. Lấy đường dẫn của thư mục gốc (Navis-Cloud-Project)
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT_DIR)
+
+from dotenv import load_dotenv
+load_dotenv(os.path.join(ROOT_DIR, '.env'), override=True)
 
 # 2. Lấy đường dẫn của thư mục backend và nhét vào path
 BACKEND_DIR = os.path.join(ROOT_DIR, 'backend')
@@ -19,8 +23,7 @@ sys.path.insert(0, BACKEND_DIR)
 # Bây giờ thay vì 'from backend.app...', ta chỉ cần 'from app...'
 from app.core.mqtt_config import MQTTConfig
 from app.core.database import SessionLocal
-from app.models.schema import Telemetry, Device, Alarm
-
+from app.models.schema import Telemetry, Device, Alarm, RawDataLog
 from worker.parsers import GNSSParser
 
 
@@ -89,14 +92,20 @@ class MQTTSubscriber:
             print(f"   Schema: {mqtt_message.schema}")
             
             # Xử lý dữ liệu theo loại schema
-            if "detect.epoch" in mqtt_message.schema:
+            # Xử lý dữ liệu theo loại schema
+            schema_name = mqtt_message.schema
+            if "detect.epoch" in schema_name:
                 self.handle_detect_epoch(mqtt_message)
-            elif "health" in mqtt_message.schema:
+            elif "health" in schema_name:
                 self.handle_health_data(mqtt_message)
-            elif "position" in mqtt_message.schema:
+            elif "position" in schema_name:
                 self.handle_position_data(mqtt_message)
-            elif "ublox" in mqtt_message.schema:
+            elif "raw.ublox" in schema_name:
                 self.handle_raw_ublox(mqtt_message)
+            elif "cmd.init" in schema_name:
+                self.handle_cmd_init(mqtt_message)
+            elif "cmd.ack" in schema_name:
+                self.handle_cmd_ack(mqtt_message)
                 
         except Exception as e:
             print(f"   ❌ Lỗi xử lý message: {e}")
@@ -204,22 +213,38 @@ class MQTTSubscriber:
             db.close()
     
     def handle_position_data(self, message):
-        """Xử lý dữ liệu position (Dùng để update vị trí tức thời cho Web)"""
+        """Xử lý dữ liệu position và Bắn Webhook sang FastAPI"""
         try:
             db = SessionLocal()
             device = db.query(Device).filter(Device.device_id == message.device_id).first()
             if not device:
                 print(f"   ⚠️ CẢNH BÁO: Bỏ qua tọa độ từ thiết bị lạ '{message.device_id}'.")
                 return
-            # Map đúng tên key: lat_deg và lon_deg
-            if device and "lat_deg" in message.data and "lon_deg" in message.data:
+
+            if "lat_deg" in message.data and "lon_deg" in message.data:
                 device.latitude = message.data["lat_deg"]
                 device.longitude = message.data["lon_deg"]
                 device.last_seen = datetime.now(timezone.utc)
-                
                 db.commit()
                 print(f"   ✅ Position updated: ({device.latitude}, {device.longitude})")
-            
+
+                # === THÊM MỚI: BẮN WEBHOOK SANG FASTAPI ===
+                try:
+                    requests.post(
+                        f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
+                        json={
+                            "event_type": "position_update",
+                            "data": {
+                                "lat_deg": device.latitude,
+                                "lon_deg": device.longitude
+                            }
+                        },
+                        timeout=2 # Timeout ngắn để Worker không bị treo nếu FastAPI sập
+                    )
+                except Exception as req_err:
+                    print(f"   ⚠️ Không thể bắn Webhook tới FastAPI: {req_err}")
+                # ==========================================
+
         except Exception as e:
             print(f"   ❌ Lỗi handle_position_data: {e}")
             db.rollback()
@@ -227,9 +252,75 @@ class MQTTSubscriber:
             db.close()
     
     def handle_raw_ublox(self, message):
-        """Xử lý raw u-blox frame - có thể mở rộng để lưu raw data"""
-        # Hiện tại chỉ log, có thể extend để lưu raw frames vào database nếu cần
-        print(f"   📝 Raw u-blox frame received (seq={message.seq})")
+        """Giải mã Base64, lưu thành file vật lý và ghi metadata vào DB"""
+        try:
+            db = SessionLocal()
+            device = db.query(Device).filter(Device.device_id == message.device_id).first()
+            if not device:
+                print(f"   ⚠️ Bỏ qua raw data từ thiết bị lạ: {message.device_id}")
+                return
+
+            # 1. Tạo thư mục lưu trữ theo ngày (Ví dụ: backend/storage/raw_logs/2026-05-12)
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            storage_dir = os.path.join(BACKEND_DIR, "storage", "raw_logs", today_str)
+            os.makedirs(storage_dir, exist_ok=True)
+
+            # 2. Decode base64
+            raw_b64 = message.data.get("raw_base64", "")
+            if not raw_b64:
+                return
+            raw_bytes = base64.b64decode(raw_b64)
+            
+            # 3. Tạo tên file duy nhất: deviceId_seq_timestamp.ubx
+            timestamp_sec = int(datetime.now(timezone.utc).timestamp())
+            filename = f"{message.device_id}_{message.seq}_{timestamp_sec}.ubx"
+            file_path = os.path.join(storage_dir, filename)
+
+            # 4. Ghi file ra ổ cứng
+            with open(file_path, "wb") as f:
+                f.write(raw_bytes)
+
+            # 5. Lưu đường dẫn vào Database (Bảng RawDataLog)
+            raw_log = RawDataLog(
+                device_id=device.id,
+                timestamp=message.event_time,
+                seq=message.seq,
+                data_type="ublox",
+                file_path=file_path,  # Chỉ lưu đường dẫn
+                file_size_bytes=len(raw_bytes)
+            )
+            db.add(raw_log)
+            db.commit()
+
+            print(f"   💾 Đã lưu file Raw: {filename} ({len(raw_bytes)} bytes)")
+
+        except Exception as e:
+            print(f"   ❌ Lỗi handle_raw_ublox: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+    def handle_cmd_init(self, message):
+        """Xử lý khi mạch vừa bật lên và báo cáo sẵn sàng"""
+        print(f"   🟢 Thiết bị {message.device_id} vừa báo cáo ONLINE (Init)")
+        # Tương lai: Update trạng thái is_active = True trong DB tại đây
+
+    def handle_cmd_ack(self, message):
+        """Xử lý khi mạch xác nhận lệnh và báo cho Web tắt Loading"""
+        print(f"   ✅ Thiết bị {message.device_id} đã xác nhận lệnh (ACK)")
+        
+        # === THÊM MỚI: BẮN WEBHOOK BÁO ACK SANG FASTAPI ===
+        try:
+            requests.post(
+                f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
+                json={
+                    "event_type": "command_ack",
+                    "data": message.data  # Có thể chứa thông tin thành công hay thất bại từ mạch
+                },
+                timeout=2
+            )
+        except Exception as req_err:
+            print(f"   ⚠️ Không thể bắn Webhook ACK: {req_err}")
     
     def start(self):
         """Kết nối và chạy subscriber"""
