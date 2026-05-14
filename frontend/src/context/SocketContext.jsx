@@ -13,15 +13,25 @@ export const SocketProvider = ({ children }) => {
         
         ws.onmessage = (event) => {
             const msg = JSON.parse(event.data);
-            // Xử lý Alarms toàn cục
-            if (msg.event_type === "alarm" || msg.event_type === "spoofing_detected") {
-                toast.error(`🚨 BÁO ĐỘNG [${deviceId}]: ${msg.data.message || 'Tín hiệu lạ!'}`, {
+            console.log("📡 [TRẠM TỔNG] Payload:", msg); // Để ông dễ soi data
+
+            // CƠ CHẾ BẮT BÁO ĐỘNG SIÊU NHẠY:
+            // Check cả schema, event_type, và check luôn lõi bên trong data
+            const isAlarm = 
+                msg.event_type === "alarm" || 
+                msg.schema === "gnss.health.v1" || 
+                msg.event_type === "health" ||
+                (msg.data && msg.data.event_type === "spoofing_detected") ||
+                (msg.data && msg.data.severity === "Critical");
+
+            if (isAlarm) {
+                toast.error(`🚨 BÁO ĐỘNG [${deviceId}]: ${msg.data.message || 'Tín hiệu bất thường!'}`, {
                     position: "top-right",
                     autoClose: false,
                     theme: "colored"
                 });
             }
-            // Phát sự kiện để các trang con (Map, Chart) có thể nghe thấy
+            
             window.dispatchEvent(new CustomEvent('device_update', { detail: msg }));
         };
 

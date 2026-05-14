@@ -12,8 +12,6 @@ const API_URL = "http://127.0.0.1:8000/api/alarms";
 const Alarms = () => {
     const navigate = useNavigate();
     const [alarms, setAlarms] = useState([]);
-    const wsConnectionsRef = useRef([]); // Lưu trữ các ống nước WebSocket
-
     // 1. HÀM TẢI DỮ LIỆU TỪ DB (Chỉ gọi khi load trang hoặc khi có báo động mới)
     const loadAlarms = async () => {
         const token = localStorage.getItem("navis_token");
@@ -36,59 +34,26 @@ const Alarms = () => {
         }
     };
 
-    // 2. KÍCH HOẠT RADAR WEBSOCKET ĐỂ NGHE CẢNH BÁO
-    const setupWebSockets = async () => {
-        const token = localStorage.getItem("navis_token");
-        try {
-            // Lấy danh sách thiết bị trước để biết phải nghe ai
-            const devRes = await fetch("http://127.0.0.1:8000/api/devices", {
-                headers: { "Authorization": `Bearer ${token}` }
-            });
-            if (!devRes.ok) return;
-            const devices = await devRes.json();
-
-            // Dọn dẹp kết nối cũ
-            wsConnectionsRef.current.forEach(ws => ws.close());
-            wsConnectionsRef.current = [];
-
-            devices.forEach(dev => {
-                const ws = new WebSocket(`ws://localhost:8000/ws/devices/${dev.device_id}`);
-                
-                ws.onmessage = (event) => {
-                    const msg = JSON.parse(event.data);
-                    
-                    // NẾU LÀ SỰ KIỆN CẢNH BÁO (Tùy backend của ông định nghĩa tên sự kiện là gì, ví dụ: alarm_trigger, spoofing, jamming...)
-                    if (msg.event_type === "alarm" || msg.event_type === "spoofing_detected") {
-                        
-                        // 1. Gọi lại API để kéo dữ liệu cảnh báo mới nhất từ DB (vì nó chứa ID chính xác)
-                        loadAlarms();
-                        
-                        // 2. Bắn thông báo ĐỎ CHÓT giật gân trên màn hình
-                        toast.error(
-                            <div>
-                                <strong>🚨 BÁO ĐỘNG TỪ {dev.device_id}</strong>
-                                <br/>
-                                {msg.data.message || 'Phát hiện tín hiệu bất thường!'}
-                            </div>, 
-                            { theme: "colored", autoClose: false } // autoClose: false bắt người dùng phải tự bấm tắt
-                        );
-                    }
-                };
-                wsConnectionsRef.current.push(ws);
-            });
-        } catch (error) { console.error("Lỗi cài đặt WebSocket:", error); }
-    };
-
-    // Khởi chạy khi vào trang
     useEffect(() => {
         let isMounted = true;
         if (isMounted) {
-            loadAlarms();
-            setupWebSockets();
+            loadAlarms(); // Lấy danh sách lúc mới vào trang
         }
+
+        const handleGlobalUpdate = (event) => {
+            const msg = event.detail;
+            
+            // Nếu Trạm tổng báo có Spoofing hoặc Alarm -> tự động kéo API cập nhật lại bảng
+            if (msg.event_type === "alarm" || msg.event_type === "spoofing_detected") {
+                loadAlarms();
+            }
+        };
+
+        window.addEventListener('device_update', handleGlobalUpdate);
+
         return () => {
             isMounted = false;
-            wsConnectionsRef.current.forEach(ws => ws.close());
+            window.removeEventListener('device_update', handleGlobalUpdate);
         };
     }, [navigate]);
 
@@ -108,6 +73,37 @@ const Alarms = () => {
             }
         } catch (error) {
             toast.error("Lỗi kết nối Server.");
+        }
+    };
+    // ==========================================
+    // HÀM XỬ LÝ XÓA CẢNH BÁO
+    // ==========================================
+    const handleDeleteAlarm = async (alarmId) => {
+        // Thêm hộp thoại xác nhận cho chắc chắn
+        if (!window.confirm("Bạn có chắc chắn muốn xóa vĩnh viễn sự kiện này không?")) return;
+
+        const token = localStorage.getItem("navis_token");
+        try {
+            const response = await fetch(`http://127.0.0.1:8000/api/alarms/${alarmId}`, {
+                method: "DELETE",
+                headers: { 
+                    "Authorization": `Bearer ${token}` 
+                }
+            });
+
+            if (response.ok) {
+                // Xóa thành công -> Cập nhật lại State để giao diện tự mất dòng đó
+                setAlarms(prevAlarms => prevAlarms.filter(alarm => alarm.id !== alarmId));
+                
+                // (Tùy chọn) Cập nhật lại các con số KPI ở trên cùng nếu ông có dùng State cho chúng
+                // setTotalAlarms(prev => prev - 1);
+            } else {
+                const errData = await response.json();
+                alert(`Lỗi: ${errData.detail}`);
+            }
+        } catch (error) {
+            console.error("Lỗi khi gọi API xóa cảnh báo:", error);
+            alert("Lỗi kết nối đến máy chủ!");
         }
     };
 
@@ -222,18 +218,44 @@ const Alarms = () => {
                                             </td>
                                             <td style={{ padding: '18px 10px', textAlign: 'right' }}>
                                                 {alarm.status === 'Active' ? (
-                                                    <button 
-                                                        onClick={() => handleResolve(alarm.id)}
-                                                        style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', transition: 'all 0.2s' }}
-                                                        onMouseOver={(e) => { e.currentTarget.style.background = '#10b981'; e.currentTarget.style.color = '#131517'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                                                        onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)'; e.currentTarget.style.color = '#10b981'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                                                    >
-                                                        ✔ Xử lý
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                                        <button 
+                                                            onClick={() => handleResolve(alarm.id)}
+                                                            style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', transition: 'all 0.2s' }}
+                                                            onMouseOver={(e) => { e.currentTarget.style.background = '#10b981'; e.currentTarget.style.color = '#131517'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                                                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)'; e.currentTarget.style.color = '#10b981'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                                                        >
+                                                            ✔ Xử lý
+                                                        </button>
+                                                        {/* Nút Xóa cho cảnh báo đang Active (nếu muốn xóa luôn không cần xử lý) */}
+                                                        <button 
+                                                            onClick={() => handleDeleteAlarm(alarm.id)}
+                                                            style={{ background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', cursor: 'pointer', padding: '8px 12px', borderRadius: '8px', transition: 'all 0.2s', display: 'flex', alignItems: 'center' }}
+                                                            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+                                                            onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                                            title="Xóa vĩnh viễn"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                <path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            </svg>
+                                                        </button>
+                                                    </div>
                                                 ) : (
-                                                    <button disabled style={{ background: '#131517', color: '#52555a', border: '1px solid rgba(255,255,255,0.05)', cursor: 'not-allowed', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '500' }}>
-                                                        Đã lưu trữ
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                                        {/* ĐÂY LÀ NÚT XÓA THAY THẾ CHO CHỮ "ĐÃ LƯU TRỮ" CŨ */}
+                                                        <button 
+                                                            onClick={() => handleDeleteAlarm(alarm.id)}
+                                                            style={{ background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                                            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'; e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.6)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                                                            onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.3)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                                                            title="Xóa vĩnh viễn sự kiện này"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                <path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            </svg>
+                                                            Xóa
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </td>
                                         </tr>

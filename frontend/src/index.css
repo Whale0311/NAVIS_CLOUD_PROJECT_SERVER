@@ -449,3 +449,78 @@ body {
     height: 300px;
     width: 100%;
 }
+/* ========================================= */
+/* CSS CHO TOOLTIP BÓNG KÍNH (BẢN TRƯỢT XUỐNG) */
+/* ========================================= */
+
+.tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: help;
+}
+
+/* Ô kính mờ ẩn đi mặc định */
+.tooltip-glass {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  
+  /* ĐẢO NGƯỢC: Nổi xuống phía DƯỚI chữ thay vì lên trên */
+  top: 150%; 
+  left: 0; 
+  transform: translateY(-10px); /* Chuẩn bị trượt xuống */
+  
+  width: 280px; 
+  padding: 14px 18px; 
+  
+  background: rgba(15, 17, 20, 0.95); 
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  
+  color: #f8fafc;
+  font-size: 0.95rem; 
+  font-weight: 400;
+  line-height: 1.6; 
+  text-align: left;
+  text-transform: none;
+  z-index: 99999; /* Đảm bảo luôn nằm trên cùng mọi Layer */
+  
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ĐẢO NGƯỢC: Tạo cái mũi tên nhỏ chỉ LÊN TRÊN */
+.tooltip-glass::after {
+  content: "";
+  position: absolute;
+  bottom: 100%; /* Nằm trên nóc của hộp bóng kính */
+  left: 30px; /* Căn mũi tên trúng ngay chữ ⓘ */
+  margin-left: -8px;
+  border-width: 8px;
+  border-style: solid;
+  /* Đổi màu viền để mũi tên hướng lên trên */
+  border-color: transparent transparent rgba(15, 17, 20, 0.95) transparent;
+}
+
+/* Khi di chuột vào thì trượt xuống và hiện ra */
+.tooltip-wrapper:hover .tooltip-glass {
+  visibility: visible;
+  opacity: 1;
+  top: 130%; /* Trượt mượt mà xuống sát chữ */
+  transform: translateY(0);
+}
+
+/* Icon chữ i nhỏ */
+.info-icon {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.tooltip-wrapper:hover .info-icon {
+  opacity: 1;
+  color: #06b6d4;
+}

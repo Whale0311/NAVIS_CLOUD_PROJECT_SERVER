@@ -37,131 +37,220 @@ const MapPage = () => {
 
     const isCurrentlyOnline = telemetryData ? checkIsOnline(telemetryData.timestamp) : false;
 
-    // 1. LẤY DANH SÁCH & BẬT RADAR WEBSOCKET CHO TOÀN BỘ BẢN ĐỒ
+    // ============================================
+    // TRANG MAP.JSX - LẮNG NGHE DỮ LIỆU TỪ TRẠM TỔNG
+    // ============================================
+    // ============================================
+    // TRANG MAP.JSX - BẢN NÂNG CẤP BỌC THÉP HOÀN TOÀN
+    // ============================================
     useEffect(() => {
         let isMounted = true;
         
-        const fetchDevicesAndSetupWS = async () => {
+        // 1. LẤY VỊ TRÍ & NHỊP TIM TỪ DB (Khắc phục lỗi không chịu Offline)
+        const fetchDevices = async () => {
             const token = localStorage.getItem("navis_token");
             try {
-                // Lấy vị trí tĩnh 1 lần khi load trang
                 const response = await fetch("http://127.0.0.1:8000/api/devices", {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
                 if (!response.ok) return;
                 const dbDevices = await response.json();
                 
+                // Kéo thêm nhịp tim cuối cùng cho từng xe
+                const telemetryPromises = dbDevices.map(async (dev) => {
+                    try {
+                        const telRes = await fetch(`http://127.0.0.1:8000/api/devices/${dev.device_id}/telemetry?limit=1`, {
+                            headers: { "Authorization": `Bearer ${token}` }
+                        });
+                        if (telRes.ok) {
+                            const telData = await telRes.json();
+                            if (telData && telData.length > 0) {
+                                return {
+                                    ...dev,
+                                    latitude: telData[0].latitude || dev.latitude,
+                                    longitude: telData[0].longitude || dev.longitude,
+                                    last_seen: telData[0].timestamp, // Ghi nhận nhịp tim gốc
+                                    is_active: checkIsOnline(telData[0].timestamp)
+                                };
+                            }
+                        }
+                    } catch (e) {}
+                    return { ...dev, is_active: false, last_seen: null };
+                });
+
+                const devicesWithData = await Promise.all(telemetryPromises);
+
                 if (isMounted) {
-                    devicesRef.current = dbDevices;
-                    setDevices(dbDevices);
-                    setupWebSockets(dbDevices);
+                    devicesRef.current = devicesWithData;
+                    setDevices(devicesWithData);
                 }
             } catch (error) { console.error("Lỗi tải thiết bị:", error); }
         };
 
-        const setupWebSockets = (deviceList) => {
-            // Dọn dẹp ống nước cũ trước khi nối ống mới
-            wsConnectionsRef.current.forEach(ws => ws.close());
-            wsConnectionsRef.current = [];
+        // LẮNG NGHE SỰ KIỆN TỪ RADAR TOÀN CỤC
+        // ==========================================
+        // MAP.JSX: LẮNG NGHE SỰ KIỆN TỪ RADAR TOÀN CỤC
+        // ==========================================
+        const handleGlobalUpdate = (event) => {
+            const msg = event.detail; 
+            
+            // CƠ CHẾ BẮT TỌA ĐỘ: Check theo chuẩn mới (có nhánh position)
+            const isPosition = 
+                msg.event_type === "telemetry_update" || 
+                msg.event_type === "position_update" || 
+                (msg.data && msg.data.position !== undefined);
 
-            deviceList.forEach(dev => {
-                const ws = new WebSocket(`ws://localhost:8000/ws/devices/${dev.device_id}`);
-                
-                ws.onmessage = (event) => {
-                    const msg = JSON.parse(event.data);
-                    
-                    // KHI CÓ TỌA ĐỘ MỚI TỪ BẤT KỲ XE NÀO
-                    if (msg.event_type === "position_update" || msg.event_type === "telemetry_update") {
+            if (isPosition) {                
+                // 1. Cập nhật vị trí Marker trên bản đồ
+                devicesRef.current = devicesRef.current.map(d => {
+                    if (d.device_id === msg.device_id) {
+                        return {
+                            ...d,
+                            is_active: true,
+                            // Móc thẳng vào nhánh position theo JSON mới
+                            latitude: msg.data.position?.lat_deg || d.latitude,
+                            longitude: msg.data.position?.lon_deg || d.longitude,
+                            last_seen: new Date().toISOString() 
+                        };
+                    }
+                    return d;
+                });
+                setDevices([...devicesRef.current]);
+
+                // 2. Bơm dữ liệu vào Bảng Panel bên phải
+                // B. Bơm dữ liệu vào Bảng Panel
+                if (selectedDeviceIdRef.current === msg.device_id) {
+                    setTelemetryData(prev => {
+                        const newData = { ...prev, ...msg.data, timestamp: new Date().toISOString() };
                         
-                        // 1. Cập nhật vị trí Marker của xe đó trên bản đồ
-                        devicesRef.current = devicesRef.current.map(d => {
-                            if (d.device_id === msg.device_id) {
-                                return {
-                                    ...d,
-                                    latitude: msg.data.lat_deg || msg.data.lat || d.latitude,
-                                    longitude: msg.data.lon_deg || msg.data.lon || d.longitude,
-                                    last_seen: new Date().toISOString() // Đánh dấu xe vừa online
-                                };
-                            }
-                            return d;
-                        });
-                        setDevices([...devicesRef.current]);
+                        // 1. LẤY CNO GỐC (Dò mọi ngóc ngách)
+                        const rawCno = msg.data.summary?.avg_cno_dbhz || msg.data.avg_cno_dbhz || msg.data.avg_cno || 0;
+                        
+                        // 2. BƠM VÀO MỌI TÊN BIẾN CÓ THỂ CÓ TRONG UI CỦA ÔNG
+                        newData.avg_cno = rawCno;
+                        newData.avg_cno_dbhz = rawCno;
+                        newData.cno = rawCno; 
+                        
+                        // 3. XỬ LÝ PDOP (Làm tròn 2 chữ số)
+                        let rawPdop = msg.data.position?.pdop || msg.data.pdop;
+                        newData.pdop = typeof rawPdop === 'number' ? rawPdop.toFixed(2) : '--';
+                        
+                        newData.sat_count = msg.data.summary?.sat_count || msg.data.sat_count || 0;
+                        newData.signals_data = msg.data.signals || msg.data.signals_data || [];
+                        
+                        return newData;
+                    });
+                    
+                    // ... (Đoạn code camera flyTo giữ nguyên)
 
-                        // 2. NẾU XE NÀY ĐANG ĐƯỢC NGƯỜI DÙNG CLICK XEM CHI TIẾT
-                        if (selectedDeviceIdRef.current === msg.device_id) {
-                            
-                            // Cập nhật CNO/SAT vào bảng Panel bên phải
-                            setTelemetryData(prev => ({
-                                ...prev,
-                                ...msg.data,
-                                timestamp: new Date().toISOString()
-                            }));
-
-                            // Camera tự động bám theo xe (Chống rung bản đồ)
-                            const lat = msg.data.lat_deg || msg.data.lat;
-                            const lon = msg.data.lon_deg || msg.data.lon;
-                            if (mapRef.current && lat && lon) {
-                                const currentCenter = mapRef.current.getCenter();
-                                const distLat = Math.abs(currentCenter.lat - lat);
-                                const distLon = Math.abs(currentCenter.lng - lon);
-                                
-                                if (distLat > 0.00002 || distLon > 0.00002) {
-                                    mapRef.current.flyTo([lat, lon], 17, { duration: 1.5 });
-                                }
-                            }
+                    // Camera tự động bám xe
+                    const lat = msg.data.position?.lat_deg;
+                    const lon = msg.data.position?.lon_deg;
+                    if (mapRef.current && lat && lon) {
+                        const currentCenter = mapRef.current.getCenter();
+                        const distLat = Math.abs(currentCenter.lat - lat);
+                        const distLon = Math.abs(currentCenter.lng - lon);
+                        if (distLat > 0.00002 || distLon > 0.00002) {
+                            mapRef.current.flyTo([lat, lon], 17, { duration: 1.5 });
                         }
                     }
-                };
-                wsConnectionsRef.current.push(ws);
-            });
+                }
+            }
         };
 
-        fetchDevicesAndSetupWS();
+        fetchDevices();
+        window.addEventListener('device_update', handleGlobalUpdate);
+        
+        // 3. QUÉT RÁC OFFLINE CHUẨN XÁC
+        const cleanupInterval = setInterval(() => {
+            const now = new Date().getTime();
+            let hasChanges = false;
+            
+            devicesRef.current = devicesRef.current.map(d => {
+                const lastTime = d.last_seen || d.timestamp || null;
+                if (lastTime && d.is_active) {
+                    let rawTime = lastTime;
+                    if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
+                    
+                    if (now - new Date(rawTime).getTime() > 15000) {
+                        hasChanges = true;
+                        return { ...d, is_active: false };
+                    }
+                }
+                return d;
+            });
 
+            if (hasChanges) {
+                // Kích hoạt vẽ lại xe thành màu xám
+                setDevices([...devicesRef.current]);
+                
+                // Ép cái Panel bên phải tự động cập nhật chữ "MẤT KẾT NỐI"
+                setTelemetryData(prev => {
+                    if (prev) return { ...prev }; 
+                    return prev;
+                });
+            }
+        }, 5000);
+        
         return () => {
             isMounted = false;
-            wsConnectionsRef.current.forEach(ws => ws.close());
+            window.removeEventListener('device_update', handleGlobalUpdate);
+            clearInterval(cleanupInterval);
         };
     }, []);
 
 
     // 2. XỬ LÝ KHI CLICK VÀO 1 XE TRÊN BẢN ĐỒ
+    // ===============================================
+    // 2. XỬ LÝ KHI CLICK VÀO 1 XE TRÊN BẢN ĐỒ
+    // ===============================================
     const handleSelectDevice = async (dev) => {
-        // Cập nhật ID để WebSocket biết xe nào đang được ưu tiên
         selectedDeviceIdRef.current = dev.device_id;
-        
         setSelectedDevice(dev);
         setIsPanelOpen(true);
         setIsLoadingTele(true);
 
-        // FlyTo ngay lập tức tới vị trí cuối cùng đã biết
         if (mapRef.current && dev.latitude && dev.longitude) {
             mapRef.current.flyTo([dev.latitude, dev.longitude], 17, { duration: 1.5 });
         }
 
-        // Gọi API 1 lần duy nhất để lấy lịch sử sóng CNO/SAT cũ điền vào bảng
-        // Sau đó WebSocket sẽ tự động bơm data mới vào (không cần setInterval nữa)
         const token = localStorage.getItem("navis_token");
         try {
             const res = await fetch(`http://127.0.0.1:8000/api/devices/${dev.device_id}/telemetry?limit=1`, {
                 headers: { "Authorization": `Bearer ${token}` }
             });
+            
+            // Xử lý thông minh: Dù API có sập 500 do CORS hay lỗi DB, ta vẫn giữ panel mở để chờ WebSocket
+            if (!res.ok) {
+                console.warn("API lỗi hoặc dính CORS, đang chờ Radar WebSocket bơm dữ liệu...");
+                setTelemetryData({ timestamp: new Date().toISOString() }); // Bơm nháp nhịp tim để chờ
+                return; 
+            }
+            
             const telData = await res.json();
             if (telData && telData.length > 0) {
                 setTelemetryData(telData[0]);
             } else {
-                setTelemetryData(null);
+                setTelemetryData({ timestamp: new Date().toISOString() });
             }
         } catch (error) { 
             console.error("Lỗi lấy thông tin viễn trắc:", error); 
+            // Giữ panel mở chờ Radar
+            setTelemetryData({ timestamp: new Date().toISOString() });
         } finally {
             setIsLoadingTele(false);
         }
     };
 
+    // ===============================================
+    // 3. RENDER THANH TÍN HIỆU VỆ TINH (CHUẨN SCHEMA)
+    // ===============================================
     const renderSignals = () => {
-        if (!isCurrentlyOnline || !telemetryData || !telemetryData.signals_data) return null;
+        if (!isCurrentlyOnline || !telemetryData || !telemetryData.signals_data) {
+            return { signals: null, legends: null };
+        }
         let activeConstellations = new Set();
+        
         const signals = telemetryData.signals_data.map((sig, index) => {
             let constName = 'Default';
             if(sig.prn.startsWith('G')) constName = 'GPS';
@@ -169,16 +258,22 @@ const MapPage = () => {
             else if(sig.prn.startsWith('E')) constName = 'Galileo';
             else if(sig.prn.startsWith('B')) constName = 'BeiDou';
             else if(sig.prn.startsWith('J')) constName = 'QZSS';
+            
             activeConstellations.add(constName);
             const config = GNSS_CONSTS[constName] || GNSS_CONSTS['Default'];
-            const percent = (sig.cno / 60) * 100;
+            
+            // ĐIỂM SỬA QUAN TRỌNG: Cập nhật biến cno thành cno_dbhz theo đúng Schema 4.4
+            const cnoValue = sig.cno_dbhz || sig.cno || 0; 
+            const percent = (cnoValue / 60) * 100;
+            
             return (
                 <div className="signal-item" key={index}>
-                    <div className="signal-header"><span>{sig.prn}</span> <span>{sig.cno} dB-Hz</span></div>
+                    <div className="signal-header"><span>{sig.prn}</span> <span>{cnoValue} dB-Hz</span></div>
                     <div className="progress-bg"><div className="progress-bar" style={{ width: `${percent}%`, backgroundColor: config.color }}></div></div>
                 </div>
             );
         });
+        
         const legends = Array.from(activeConstellations).map(cName => {
             const config = GNSS_CONSTS[cName];
             return (
@@ -188,6 +283,7 @@ const MapPage = () => {
                 </div>
             );
         });
+        
         return { signals, legends };
     };
 
@@ -247,20 +343,45 @@ const MapPage = () => {
                             {isCurrentlyOnline ? '● Online' : '🔴 Mất kết nối'}
                         </span>
                     </div>
-                    {/* ... (Các phần detail-row giữ nguyên) ... */}
                     <div className="detail-row">
-                        <span className="detail-label">CN₀ Trung bình</span>
+                        <span className="detail-label tooltip-wrapper">
+                            CN₀ Trung bình <span className="info-icon">ⓘ</span>
+                            {/* Ô bóng kính sẽ hiện ra khi hover */}
+                            <div className="tooltip-glass">
+                                <b>Tỷ số dải sóng mang trên nhiễu</b> (Carrier-to-Noise density).<br/>
+                                Đánh giá chất lượng tín hiệu thu được từ vệ tinh. Giá trị &gt; 40 dB-Hz là tín hiệu rất khỏe.
+                            </div>
+                        </span>
                         <span className="detail-value" style={{ color: '#06b6d4', fontSize: '1.6rem' }}>
-                            {isCurrentlyOnline ? telemetryData?.avg_cno?.toFixed(1) : '--'}
+                            {isCurrentlyOnline 
+                                ? Number(telemetryData?.avg_cno_dbhz ?? telemetryData?.avg_cno ?? 0).toFixed(1) 
+                                : '--'}
                         </span>
                     </div>
+
                     <div className="detail-row">
-                        <span className="detail-label">Vệ tinh Tracking</span>
-                        <span className="detail-value" style={{ color: '#10b981' }}>{isCurrentlyOnline ? telemetryData?.sat_count : '--'}</span>
+                        <span className="detail-label tooltip-wrapper">
+                            Vệ tinh Tracking <span className="info-icon">ⓘ</span>
+                            <div className="tooltip-glass">
+                                Số lượng vệ tinh hiện tại thiết bị đang bắt sóng và sử dụng để tính toán tọa độ. Càng nhiều vệ tinh, độ chính xác càng cao.
+                            </div>
+                        </span>
+                        <span className="detail-value" style={{ color: '#10b981' }}>
+                            {isCurrentlyOnline ? telemetryData?.sat_count : '--'}
+                        </span>
                     </div>
+
                     <div className="detail-row">
-                        <span className="detail-label">PDOP</span>
-                        <span className="detail-value">{isCurrentlyOnline ? telemetryData?.pdop : '--'}</span>
+                        <span className="detail-label tooltip-wrapper">
+                            PDOP <span className="info-icon">ⓘ</span>
+                            <div className="tooltip-glass">
+                                <b>Độ suy giảm độ chính xác vị trí</b> (Position Dilution of Precision).<br/>
+                                Đánh giá sự phân bố hình học của các vệ tinh trên bầu trời. Giá trị &lt; 2.0 là cấu hình lý tưởng.
+                            </div>
+                        </span>
+                        <span className="detail-value">
+                            {isCurrentlyOnline ? Number(telemetryData?.pdop ?? 0).toFixed(2) : '--'}
+                        </span>
                     </div>
 
                     <div style={{ marginTop: '15px', marginBottom: '5px', color: '#a3a3a3', fontSize: '0.8rem', fontWeight: 'bold' }}>CHI TIẾT TÍN HIỆU (DB-HZ)</div>

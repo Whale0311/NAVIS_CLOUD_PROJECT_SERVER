@@ -30,23 +30,30 @@ const DeviceDetail = () => {
     };
     // Ref để quản lý Timeout của lệnh gửi
     const timeoutRef = useRef(null);
-
-    // 1. WEBSOCKET
+    const toastIdRef = useRef(null);
+    // ===============================================
+    // LẮNG NGHE PHẢN HỒI LỆNH TỪ TRẠM RADAR TOÀN CỤC
+    // ===============================================
     useEffect(() => {
-        const ws = new WebSocket(`ws://localhost:8000/ws/devices/${deviceId}`);
-        ws.onopen = () => console.log("🟢 Bật Radar WebSocket!");
-        ws.onmessage = (event) => {
-            const msg = JSON.parse(event.data);
-            if (msg.event_type === "command_ack") {
-                setIsSendingCmd(false);
-                clearTimeout(timeoutRef.current); // Mạch trả lời thì hủy đếm ngược timeout
-                toast.success("Mạch đã phản hồi lệnh thành công!");
+        const handleGlobalUpdate = (event) => {
+            const msg = event.detail;
+            
+            const isAck = msg.event_type === "command_ack" || msg.schema === "gnss.cmd.ack.v1" || msg.event_type === "ack";
+
+            if (isAck && msg.device_id === deviceId) {
+                setIsSendingCmd(false); 
+                clearTimeout(timeoutRef.current); 
+                
+                // UPDATE LẠI THÔNG BÁO THÀNH CÔNG (Tự động tắt sau 3s)
+                toast.update(toastIdRef.current, { render: "Mạch đã phản hồi lệnh thành công!", type: "success", isLoading: false, autoClose: 3000 });
             }
         };
-        return () => {
-            ws.close();
-            clearTimeout(timeoutRef.current);
-        };
+
+        // Bật tai lên nghe
+        window.addEventListener('device_update', handleGlobalUpdate);
+        
+        // Rút tai nghe khi thoát trang
+        return () => window.removeEventListener('device_update', handleGlobalUpdate);
     }, [deviceId]);
 
     // 2. FETCH FILE
@@ -69,24 +76,19 @@ const DeviceDetail = () => {
         try {
             const res = await fetch(`http://localhost:8000/api/devices/${deviceId}/command/${cmdType}`, {
                 method: 'POST',
-                headers: { 
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}` 
-                },
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                 body: JSON.stringify({ payload: customPayload })
             });
             if(res.ok) {
-                toast.info(`Đang gửi lệnh ${cmdType}, chờ phản hồi...`);
+                // HIỂN THỊ LOADING VÀ LƯU ID LẠI
+                toastIdRef.current = toast.loading(`Đang gửi lệnh ${cmdType}, chờ phản hồi...`);
                 
                 timeoutRef.current = setTimeout(() => {
-                    // Tách biệt việc set State và gọi Toast ra khỏi nhau
                     setIsSendingCmd(false);
-                    toast.warning("Thiết bị không phản hồi (Timeout)!");
+                    // UPDATE LẠI THÔNG BÁO NẾU TIMEOUT (Tự động tắt sau 3s)
+                    toast.update(toastIdRef.current, { render: "Thiết bị không phản hồi (Timeout)!", type: "warning", isLoading: false, autoClose: 3000 });
                 }, 10000);
-                
-            } else {
-                throw new Error();
-            }
+            } else throw new Error();
         } catch (error) {
             setIsSendingCmd(false);
             toast.error("Lỗi mạng khi gửi lệnh!");

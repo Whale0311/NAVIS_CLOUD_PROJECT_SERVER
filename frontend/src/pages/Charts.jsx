@@ -5,18 +5,15 @@ import {
     Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler, RadialLinearScale, ArcElement
 } from 'chart.js';
 import { Line, PolarArea } from 'react-chartjs-2';
-
-// --- IMPORT CHO PLOTLY ---
 import Plotly from 'plotly.js-dist';
 import factory from 'react-plotly.js/factory';
 
 const createPlotlyComponent = factory.default || factory;
 const Plot = createPlotlyComponent(Plotly);
 
-// Đăng ký các thư viện cho Chart.js và cấu hình màu Dark Mode đồng bộ
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler, RadialLinearScale, ArcElement);
-ChartJS.defaults.color = '#8b8d93'; // Màu chữ xám nhạt
-ChartJS.defaults.borderColor = 'rgba(255, 255, 255, 0.04)'; // Đường lưới mờ
+ChartJS.defaults.color = '#8b8d93'; 
+ChartJS.defaults.borderColor = 'rgba(255, 255, 255, 0.04)'; 
 ChartJS.defaults.font.family = "'Inter', system-ui, sans-serif";
 
 const MAX_HISTORY = 60;
@@ -37,30 +34,34 @@ const Charts = () => {
     const [selectedDeviceId, setSelectedDeviceId] = useState('');
     const [isLive, setIsLive] = useState(false);
     
-    // Tích hợp Ref để chứa dữ liệu không bị "đóng băng" khi nhận WebSocket
     const chartStateRef = useRef({
         trendLabels: Array(MAX_HISTORY).fill('--:--'),
         trendData: Array(MAX_HISTORY).fill(null),
         skyplotCounts: [0, 0, 0, 0],
         historyBuffer: Array(MAX_HISTORY).fill({ time: '', signals: {} })
     });
-    const wsRef = useRef(null); // Ref để chứa ống nước
-
+    
     const [chartState, setChartState] = useState(chartStateRef.current);
 
+    // ==========================================
+    // HÀM XỬ LÝ DATA REALTIME TỪ WEBSOCKET
+    // ==========================================
     const processNewTelemetry = (apiData) => {
-        let rawTime = apiData.timestamp || new Date().toISOString();
+        let rawTime = apiData.timestamp || apiData.event_time || new Date().toISOString();
         if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
         const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
-        const signals = apiData.signals_data || [];
+        
+        const signals = apiData.signals || apiData.signals_data || [];
+        const currentCno = apiData.summary?.avg_cno_dbhz ?? apiData.avg_cno_dbhz ?? apiData.avg_cno ?? 0;
 
-        // Thao tác thẳng trên Ref để tránh lỗi closure của WebSocket
         const curr = chartStateRef.current;
         const newLabels = [...curr.trendLabels.slice(1), timeStr];
-        const newData = [...curr.trendData.slice(1), apiData.avg_cno || 0];
+        const newData = [...curr.trendData.slice(1), currentCno]; 
         
         let sigMap = {};
-        signals.forEach(s => sigMap[s.prn] = s.cno);
+        signals.forEach(s => {
+            sigMap[s.prn] = s.cno_dbhz ?? s.cno ?? 0; 
+        });
         const newBuffer = [{ time: timeStr, signals: sigMap }, ...curr.historyBuffer.slice(0, -1)];
 
         chartStateRef.current = {
@@ -70,13 +71,15 @@ const Charts = () => {
             historyBuffer: newBuffer
         };
 
-        // Sau khi tính toán trên bộ não (Ref), ta ra lệnh cho UI (State) vẽ lại
         setChartState({ ...chartStateRef.current });
-        setIsLive(true); // Nhận được data = Đang Live
+        setIsLive(true); 
     };
 
-    // 1. CHẠY 1 LẦN DUY NHẤT LẤY DANH SÁCH THIẾT BỊ
+    // ==========================================
+    // 1. LẤY DANH SÁCH THIẾT BỊ LÚC LOAD TRANG
+    // ==========================================
     useEffect(() => {
+        let isMounted = true;
         const loadDevices = async () => {
             const token = localStorage.getItem("navis_token");
             try {
@@ -85,21 +88,23 @@ const Charts = () => {
                 });
                 if (!res.ok) return;
                 const dbDevices = await res.json();
-                setDevices(dbDevices);
-                if (dbDevices.length > 0) setSelectedDeviceId(dbDevices[0].device_id);
+                
+                if (isMounted) {
+                    setDevices(dbDevices);
+                    if (dbDevices.length > 0) setSelectedDeviceId(dbDevices[0].device_id);
+                }
             } catch (e) { console.error("Lỗi lấy thiết bị", e); }
         };
         loadDevices();
+        return () => { isMounted = false; };
     }, []);
 
-    // 2. KHI CHỌN THIẾT BỊ -> LẤY LỊCH SỬ (1 LẦN) VÀ BẬT WEBSOCKET LẮNG NGHE LIVES
+    // ==========================================
+    // 2. LOAD LỊCH SỬ & LẮNG NGHE RADAR
+    // ==========================================
     useEffect(() => {
         if (!selectedDeviceId) return;
-
-        // Đóng ống nước cũ nếu ông đổi xe khác
-        if (wsRef.current) wsRef.current.close();
         
-        // Reset lại biểu đồ trắng trước khi load xe mới
         chartStateRef.current = {
             trendLabels: Array(MAX_HISTORY).fill('--:--'),
             trendData: Array(MAX_HISTORY).fill(null),
@@ -109,10 +114,9 @@ const Charts = () => {
         setChartState(chartStateRef.current);
         setIsLive(false);
 
-        const loadHistoryAndStartLive = async () => {
+        const loadHistory = async () => {
             const token = localStorage.getItem("navis_token");
             try {
-                // A. Gọi API lấy 60 điểm lịch sử gần nhất đắp vào biểu đồ
                 const res = await fetch(`http://127.0.0.1:8000/api/devices/${selectedDeviceId}/telemetry?limit=${MAX_HISTORY}`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
@@ -129,9 +133,13 @@ const Charts = () => {
                         if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
                         const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
                         labels.push(timeStr);
-                        dataPoints.push(item.avg_cno || 0);
+                        
+                        dataPoints.push(item.avg_cno_dbhz ?? item.avg_cno ?? 0);
+                        
                         let sigMap = {};
-                        (item.signals_data || []).forEach(s => sigMap[s.prn] = s.cno);
+                        (item.signals_data || []).forEach(s => {
+                            sigMap[s.prn] = s.cno_dbhz ?? s.cno ?? 0;
+                        });
                         buffer.unshift({ time: timeStr, signals: sigMap });
                     });
 
@@ -147,41 +155,35 @@ const Charts = () => {
                     };
                     setChartState({ ...chartStateRef.current });
                 }
-
-                // B. BẬT WEBSOCKET THAY THẾ CHO setInterval
-                wsRef.current = new WebSocket(`ws://localhost:8000/ws/devices/${selectedDeviceId}`);
-                
-                wsRef.current.onmessage = (event) => {
-                    const msg = JSON.parse(event.data);
-                    
-                    // Nếu xe gửi cập nhật CNO/SAT (hoặc tọa độ có kèm CNO) -> Vẽ thêm 1 điểm vào cuối biểu đồ
-                    if (msg.event_type === "telemetry_update" || msg.event_type === "position_update") {
-                        // Gọi hàm nhồi data vào cuối mảng, biểu đồ sẽ tự động tịnh tiến sang trái
-                        processNewTelemetry(msg.data); 
-                    }
-                };
-
-            } catch (e) { console.error("Lỗi nạp dữ liệu", e); }
+            } catch (e) { console.error("Lỗi nạp dữ liệu lịch sử", e); }
         };
 
-        loadHistoryAndStartLive();
+        const handleGlobalUpdate = (event) => {
+            const msg = event.detail; 
+            
+            const isPosition = 
+                msg.event_type === "telemetry_update" || 
+                msg.event_type === "position_update" || 
+                msg.event_type === "epoch" ||
+                msg.schema === "gnss.detect.epoch.v1" ||
+                (msg.data && msg.data.position !== undefined);
 
-        // 3. Tắt Radar dọn dẹp khi chuyển xe khác hoặc thoát trang
+            // Cập nhật biểu đồ nếu data thuộc về đúng chiếc xe đang xem!
+            if (isPosition && msg.device_id === selectedDeviceId) {
+                processNewTelemetry(msg.data); 
+            }
+        };
+
+        loadHistory();
+        window.addEventListener('device_update', handleGlobalUpdate);
+
         return () => {
-            if (wsRef.current) wsRef.current.close();
+            window.removeEventListener('device_update', handleGlobalUpdate);
         };
     }, [selectedDeviceId]);
 
     const handleDeviceChange = (e) => {
         setSelectedDeviceId(e.target.value);
-        lastTelemetryIdRef.current = null;
-        setIsLive(false);
-        setChartState({
-            trendLabels: Array(MAX_HISTORY).fill('--:--'),
-            trendData: Array(MAX_HISTORY).fill(null),
-            skyplotCounts: [0, 0, 0, 0],
-            historyBuffer: Array(MAX_HISTORY).fill({ time: '', signals: {} })
-        });
     };
 
     // --- Biểu đồ Config ---
@@ -190,7 +192,7 @@ const Charts = () => {
         datasets: [{
             label: 'Avg C/N₀',
             data: chartState.trendData,
-            borderColor: '#10b981', // Màu xanh ngọc dạ quang
+            borderColor: '#10b981', 
             backgroundColor: 'rgba(16, 185, 129, 0.1)',
             borderWidth: 2.5, fill: true, tension: 0.3, pointRadius: 0
         }]
@@ -200,7 +202,6 @@ const Charts = () => {
         labels: ['GPS (G)', 'GLONASS (R)', 'Galileo (E)', 'BeiDou (B)'],
         datasets: [{
             data: chartState.skyplotCounts,
-            // Các màu vệ tinh tùy chỉnh, thêm viền đậm cùng màu nền card (#1c1e22) để tạo độ sắc nét
             backgroundColor: ['rgba(251, 191, 36, 0.8)','rgba(239, 68, 68, 0.8)','rgba(59, 130, 246, 0.8)','rgba(16, 185, 129, 0.8)'],
             borderColor: '#1c1e22', 
             borderWidth: 3
@@ -216,12 +217,10 @@ const Charts = () => {
     return (
         <Layout>
             <div className="dashboard-container">
-                {/* Tiêu đề trang */}
                 <div className="header-section">
                     <h1 className="header-title">Data Analytics</h1>
                 </div>
 
-                {/* Thanh Control Bar */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', backgroundColor: '#1c1e22', padding: '16px 24px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                         <span style={{ fontSize: '1rem', fontWeight: '500', color: '#8b8d93' }}>Select Device:</span>
@@ -243,12 +242,12 @@ const Charts = () => {
                     </div>
                 </div>
 
-                {/* Grid chứa Biểu đồ */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
-                    
-                    {/* Plotly Heatmap (Chiếm 3 cột nếu muốn tràn ngang, hoặc 2 cột tùy ý) */}
                     <div className="chart-card" style={{ gridColumn: 'span 3', height: '450px', display: 'flex', flexDirection: 'column' }}>
-                        <div className="chart-title">Spectrum Waterfall (Real-time)</div>
+                        <div className="chart-title tooltip-wrapper">
+                            Spectrum Waterfall (Real-time) <span className="info-icon">ⓘ</span>
+                            <div className="tooltip-glass">Bản đồ nhiệt thể hiện sự thay đổi cường độ tín hiệu...</div>
+                        </div>
                         <div style={{ flexGrow: 1, position: 'relative' }}>
                             <Plot
                                 data={[{ z: zMatrix, x: xLabels, y: yLabels, type: 'heatmap', colorscale: 'Jet', zsmooth: 'best', zmin: 15, zmax: 55, showscale: true, colorbar: { tickfont: {color: '#8b8d93'}, thickness: 15 } }]}
@@ -258,37 +257,25 @@ const Charts = () => {
                         </div>
                     </div>
 
-                    {/* Biểu đồ Line */}
                     <div className="chart-card" style={{ gridColumn: 'span 2', height: '350px', display: 'flex', flexDirection: 'column' }}>
-                        <div className="chart-title">Average C/N₀ Trend</div>
+                        <div className="chart-title tooltip-wrapper">
+                            Average C/N₀ Trend <span className="info-icon">ⓘ</span>
+                            <div className="tooltip-glass">Biểu đồ thể hiện xu hướng thay đổi giá trị C/N₀ theo thời gian...</div>
+                        </div>
                         <div style={{ flexGrow: 1, position: 'relative' }}>
                             <Line data={trendConfig} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { min: 15, max: 60 }, x: { grid: { display: false } } }, plugins: { legend: { display: false } }, animation: { duration: 0 } }} />
                         </div>
                     </div>
 
-                    {/* Biểu đồ Radar/Polar Area */}
                     <div className="chart-card" style={{ gridColumn: 'span 1', height: '350px', display: 'flex', flexDirection: 'column' }}>
-                        <div className="chart-title">Skyplot Tracking</div>
+                        <div className="chart-title tooltip-wrapper">
+                            Skyplot Tracking <span className="info-icon">ⓘ</span>
+                            <div className="tooltip-glass">Bản đồ thể hiện vị trí và trạng thái của các vệ tinh...</div>
+                        </div>
                         <div style={{ flexGrow: 1, position: 'relative' }}>
                             <PolarArea 
                                 data={skyplotConfig} 
-                                options={{ 
-                                    responsive: true, 
-                                    maintainAspectRatio: false, 
-                                    plugins: { 
-                                        legend: { 
-                                            position: 'bottom', // Đưa legend xuống dưới cho gọn trên màn nhỏ
-                                            labels: { color: '#e2e8f0', padding: 15, usePointStyle: true }
-                                        } 
-                                    }, 
-                                    scales: { 
-                                        r: { 
-                                            ticks: { display: false }, 
-                                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                                            angleLines: { color: 'rgba(255, 255, 255, 0.05)' }
-                                        } 
-                                    } 
-                                }} 
+                                options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#e2e8f0', padding: 15, usePointStyle: true } } }, scales: { r: { ticks: { display: false }, grid: { color: 'rgba(255, 255, 255, 0.05)' }, angleLines: { color: 'rgba(255, 255, 255, 0.05)' } } } }} 
                             />
                         </div>
                     </div>

@@ -9,7 +9,7 @@ BROKER = "gnss.soict.io"
 PORT = 1883
 AUTH = {'username': "rw_user", 'password': "rw"} 
 DEVICE_ID = "device_test1" 
-SITE_ID = "default_site"
+SITE_ID = "lab_hanoi" # Đổi lại theo đúng ví dụ trong MD
 # ============================================
 
 def on_connect(client, userdata, flags, reason_code, properties):
@@ -27,21 +27,21 @@ client.loop_start()
 
 time.sleep(1)
 
-# Tọa độ giả lập khu vực Bách Khoa
-current_lat = 21.005
-current_lon = 105.844
+current_lat = 21.0055
+current_lon = 105.8445
+seq_counter = 123456 
 
 while True:
     print("=========================================")
-    print("🤖 BẢNG ĐIỀU KHIỂN THIẾT BỊ GIẢ LẬP")
-    print("1. Bắn tọa độ di chuyển (Test Map & Chart)")
-    print("2. Bắn tín hiệu Spoofing (Test Alarms)")
+    print("🤖 BẢNG ĐIỀU KHIỂN THIẾT BỊ GIẢ LẬP (CHUẨN SCHEMA V1)")
+    print("1. Bắn tọa độ Epoch (Test Map & Chart)")
+    print("2. Bắn tín hiệu Health/Spoofing (Test Alarms)")
     print("3. Bắn phản hồi lệnh ACK (Test Device Control)")
-    print("4. Bắn file Raw .ubx (Test File Upload)")
     print("0. Thoát")
     print("=========================================")
     
-    choice = input("👉 Chọn hành động (0-4): ")
+    choice = input("👉 Chọn hành động (0-3): ")
+    curr_time = time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
 
     if choice == '0':
         client.loop_stop()
@@ -53,70 +53,112 @@ while True:
         current_lat += random.uniform(-0.0005, 0.0005)
         current_lon += random.uniform(-0.0005, 0.0005)
         
+        # Bơm danh sách vệ tinh chuẩn Schema 4.4
+        fake_signals = []
+        for i in range(random.randint(8, 14)):
+            fake_signals.append({
+                "gnss": "GPS",
+                "svid": i + 1,
+                "signal": "L1C",
+                "prn": f"G{i+1:02d}",
+                "cno_dbhz": random.randint(35, 50),
+                "used_in_fix": True,
+                "receiver_ids": ["rx1", "rx2"]
+            })
+        
+        # Payload chuẩn Schema 4.0 (gnss.detect.epoch.v1)
         payload = {
             "schema": "gnss.detect.epoch.v1",
+            "event_id": f"{DEVICE_ID}-{seq_counter}",
+            "seq": seq_counter,
             "device_id": DEVICE_ID,
             "site_id": SITE_ID,
-            "event_time": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            "frontend": "ublox",
+            "source": "rx_pair",
+            "event_time": curr_time,
+            "ingest_time": curr_time,
             "data": {
-                "lat": current_lat,
-                "lon": current_lon,
-                "avg_cno": random.randint(35, 48), 
-                "sat_count": random.randint(8, 15) 
+                "time": { "tow_s": 123456.0, "gps_week": 2415 },
+                "position": {
+                    "lat_deg": current_lat,
+                    "lon_deg": current_lon,
+                    "height_m": 12.3,
+                    "fix_type": "3d",
+                    "pdop": random.uniform(1.0, 2.5)
+                },
+                "summary": {
+                    "sat_count": len(fake_signals),
+                    "avg_cno_dbhz": random.uniform(40.0, 48.0),
+                    "spoofing": False,
+                    "status": "normal"
+                },
+                "signals": fake_signals,
+                "detectors": {}
             }
         }
-        # Đã chuẩn Topic: epoch
         topic = f"gnss/{SITE_ID}/{DEVICE_ID}/detect/epoch/v1"
         client.publish(topic, json.dumps(payload), qos=1)
-        print("🚀 Đã bắn tọa độ & CNO! Hãy check trang Map và Charts.\n")
+        print("🚀 Đã bắn tọa độ Epoch lồng nhau chuẩn xác!\n")
 
     elif choice == '2':
+        # Gửi Health Data kích hoạt cả lỗi hệ thống lẫn giả mạo
         payload = {
-            "schema": "gnss.health.v1", 
+            "schema": "gnss.health.v1",
+            "event_id": f"{DEVICE_ID}-health-{seq_counter}",
+            "seq": seq_counter,
             "device_id": DEVICE_ID,
-            "event_time": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            "site_id": SITE_ID,
+            "frontend": "mixed",
+            "source": "pipeline",
+            "event_time": curr_time,
+            "ingest_time": curr_time,
             "data": {
+                "status": "degraded",
+                "ingress_backlog": 0,
+                "detect_backlog": 105, # > 100 để kích hoạt Alarm cảnh báo Backlog
+                "raw_backlog": 5,
+                "ingress_dropped": 0,
+                "detect_dropped": 0,
+                "raw_dropped": 0,
+                "raw_emitted": 123450,
+                "unknown_events": 0,
+                "last_seq": seq_counter,
+                "mqtt_raw_published": 100,
+                "mqtt_raw_failed": 0,
+                "mqtt_detect_published": 50,
+                "mqtt_detect_failed": 0,
+                "mqtt_position_published": 50,
+                "mqtt_position_failed": 0,
+                "mqtt_health_published": 10,
+                "mqtt_health_failed": 0,
+                "cpu_percent": 85.4,
+                # Trường tùy chỉnh để chọc thủng hàm handle_health_data của Worker báo Spoofing
                 "event_type": "spoofing_detected",
                 "severity": "Critical",
-                "message": "Phát hiện giả mạo GPS khu vực Bách Khoa!"
+                "message": "Phát hiện giả mạo tín hiệu GPS!"
             }
         }
-        # Đã SỬA Topic: health (khớp với SUBSCRIBE_TOPICS của Backend)
         topic = f"gnss/{SITE_ID}/{DEVICE_ID}/health/v1" 
         client.publish(topic, json.dumps(payload), qos=1)
-        print("🚨 Đã hú còi Spoofing! Hãy check trang Alarms.\n")
+        print("🚨 Đã gửi Health Data kèm còi báo động Spoofing!\n")
 
     elif choice == '3':
         payload = {
             "schema": "gnss.cmd.ack.v1",
-            "device_id": DEVICE_ID,
-            "data": {
-                "status": "success",
-                "command_executed": "reboot"
-            }
-        }
-        # Đã chuẩn Topic: ack
-        topic = f"gnss/{SITE_ID}/{DEVICE_ID}/cmd/ack/v1"
-        client.publish(topic, json.dumps(payload), qos=1)
-        print("✅ Đã bắn lệnh ACK! Hãy bấm nút Reboot trên web và xem nó tắt loading.\n")
-
-    elif choice == '4':
-        fake_file = base64.b64encode(b"Dummy UBX Data from Simulator").decode('utf-8')
-        payload = {
-            "schema": "gnss.raw.ublox.v1",
+            "event_id": f"{DEVICE_ID}-cmd_ack-{seq_counter}",
+            "seq": seq_counter,
             "device_id": DEVICE_ID,
             "site_id": SITE_ID,
-            "event_time": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            "frontend": "ublox",
+            "source": "pipeline",
+            "event_time": curr_time,
+            "ingest_time": curr_time,
             "data": {
-                "raw_len": 29,
-                "raw_encoding": "base64",
-                "raw_base64": fake_file
+                "acknowledged": ["cmd_e1"]
             }
         }
-        # Đã chuẩn Topic: raw
-        topic = f"gnss/{SITE_ID}/{DEVICE_ID}/raw/ublox/v1"
+        topic = f"gnss/{SITE_ID}/{DEVICE_ID}/cmd/ack/v1"
         client.publish(topic, json.dumps(payload), qos=1)
-        print("💾 Đã tải lên file Raw! Hãy check trang Quản lý File.\n")
-        
-    else:
-        print("⚠️ Lựa chọn không hợp lệ, vui lòng chọn lại.\n")
+        print("✅ Đã bắn lệnh ACK!\n")
+
+    seq_counter += 1

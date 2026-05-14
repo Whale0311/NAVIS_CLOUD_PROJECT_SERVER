@@ -1,7 +1,8 @@
 // src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { SocketProvider } from './context/SocketContext'; // ==== 1. IMPORT CÁI NÀY ====
-
+import { SocketProvider } from './context/SocketContext'; 
+import { ToastContainer } from 'react-toastify'; 
+import 'react-toastify/dist/ReactToastify.css';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Devices from './pages/Devices';
@@ -15,6 +16,7 @@ function App() {
   return (
     // ==== 2. BỌC SOCKET PROVIDER Ở NGOÀI CÙNG ====
     <SocketProvider> 
+      <ToastContainer position="top-right" autoClose={5000} theme="dark" />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Login />} />

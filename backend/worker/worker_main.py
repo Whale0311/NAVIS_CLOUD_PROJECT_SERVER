@@ -157,7 +157,24 @@ class MQTTSubscriber:
             
             print(f"   ✅ Đã lưu telemetry: {telemetry.sat_count} sats, "
                   f"C/N0={telemetry.avg_cno_dbhz} dB-Hz, Spoofed={telemetry.is_spoofed}")
-            
+            # ========================================================
+            # ========================================================
+            # THÊM ĐOẠN NÀY ĐỂ BÁO CHO FASTAPI BIẾT CÓ TỌA ĐỘ MỚI
+            try:
+                raw_data = message.data if isinstance(message.data, dict) else {}
+                
+                requests.post(
+                    f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
+                    json={
+                        "event_type": "telemetry_update",
+                        "schema": "gnss.detect.epoch.v1",
+                        "data": raw_data  # <--- ĐIỂM ĂN TIỀN Ở ĐÂY: Truyền thẳng nguyên cục gốc!
+                    },
+                    timeout=2
+                )
+            except Exception as req_err:
+                print(f"   ⚠️ Không thể bắn Webhook Telemetry: {req_err}")
+            # ========================================================
         except Exception as e:
             print(f"   ❌ Lỗi handle_detect_epoch: {e}")
             db.rollback()
@@ -169,43 +186,83 @@ class MQTTSubscriber:
         try:
             db = SessionLocal()
             health_data = self.parser.extract_health_data(message)
-            if not health_data:
-                return
+            
+            # Lấy data gốc từ gói tin MQTT (vì parser có thể lọt lưới các trường tùy chỉnh)
+            raw_data = message.data if isinstance(message.data, dict) else {}
+            event_type = raw_data.get("event_type") or (health_data and health_data.get("event_type"))
             
             device = db.query(Device).filter(Device.device_id == message.device_id).first()
             if not device:
                 return
-            
-            # Tính tổng số frame bị rớt
-            total_dropped = (health_data.get("ingress_dropped", 0) + 
-                             health_data.get("detect_dropped", 0) + 
-                             health_data.get("raw_dropped", 0))
-                             
-            if total_dropped > 0:
+
+            alarm_saved = False # Cờ đánh dấu có lưu DB hay không
+
+            # 1. BẮT CẢNH BÁO BẢO MẬT (TỪ SIMULATOR HOẶC MẠCH GNSS)
+            if event_type == "spoofing_detected" or event_type == "alarm":
                 alarm = Alarm(
                     device_id=device.id,
-                    severity="Warning",
-                    event_desc=f"Dropped {total_dropped} frames total",
+                    severity=raw_data.get("severity", "Critical"),
+                    event_desc=raw_data.get("message", "Phát hiện giả mạo tín hiệu GPS!"),
                     status="Active"
                 )
                 db.add(alarm)
+                alarm_saved = True
+
+            # 2. BẮT CẢNH BÁO LỖI HỆ THỐNG (DROP / BACKLOG)
+            if health_data:
+                total_dropped = (health_data.get("ingress_dropped", 0) + 
+                                 health_data.get("detect_dropped", 0) + 
+                                 health_data.get("raw_dropped", 0))
+                                 
+                if total_dropped > 0:
+                    alarm = Alarm(
+                        device_id=device.id,
+                        severity="Warning",
+                        event_desc=f"Dropped {total_dropped} frames total",
+                        status="Active"
+                    )
+                    db.add(alarm)
+                    alarm_saved = True
+                
+                total_backlog = (health_data.get("ingress_backlog", 0) + 
+                                 health_data.get("detect_backlog", 0))
+                                 
+                if total_backlog > 100:
+                    alarm = Alarm(
+                        device_id=device.id,
+                        severity="Warning",
+                        event_desc=f"High processing backlog: {total_backlog} messages",
+                        status="Active"
+                    )
+                    db.add(alarm)
+                    alarm_saved = True
             
-            # Tính tổng backlog
-            total_backlog = (health_data.get("ingress_backlog", 0) + 
-                             health_data.get("detect_backlog", 0))
-                             
-            if total_backlog > 100:
-                alarm = Alarm(
-                    device_id=device.id,
-                    severity="Warning",
-                    event_desc=f"High processing backlog: {total_backlog} messages",
-                    status="Active"
+            # Khóa dữ liệu vào DB nếu có bất kỳ còi báo nào kêu
+            if alarm_saved:
+                db.commit()
+                print(f"   🚨 Đã lưu cảnh báo vào Database!")
+            else:
+                print(f"   ✅ Health data checked (Hệ thống ổn định)")
+
+            # 3. BẮN WEBHOOK KÍCH HOẠT RADAR FRONTEND
+            # Ta dùng raw_data để đảm bảo không bị lỗi object thời gian (datetime)
+            try:
+                requests.post(
+                    f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
+                    json={
+                        "event_type": "alarm",
+                        "schema": "gnss.health.v1",
+                        "data": {
+                            "event_type": str(event_type),
+                            "severity": str(raw_data.get("severity", "Critical")),
+                            "message": str(raw_data.get("message", "Phát hiện sự cố bất thường!"))
+                        }
+                    },
+                    timeout=2
                 )
-                db.add(alarm)
-            
-            db.commit()
-            print(f"   ✅ Health data checked")
-            
+            except Exception as req_err:
+                print(f"   ⚠️ Không thể bắn Webhook Alarm: {req_err}")
+
         except Exception as e:
             print(f"   ❌ Lỗi handle_health_data: {e}")
             db.rollback()

@@ -50,13 +50,16 @@ class DeviceResponse(DeviceBase):
 # CẬP NHẬT: SCHEMAS CHO VIỄN TRẮC (MQTT DATA)
 # ==========================================
 
-# Định nghĩa cấu trúc cho 1 vệ tinh dựa theo MQTT schema
 class SignalDetail(BaseModel):
-    gnss: str
-    svid: int
-    signal: Optional[str] = None
     prn: str
-    cno_dbhz: Optional[float] = None
+    svid: Optional[int] = None       # <--- Đã bọc Optional để tránh lỗi 500
+    gnss: Optional[str] = "UNKNOWN"  # <--- Bọc Optional kèm giá trị mặc định
+    signal: Optional[str] = None
+    
+    # Hỗ trợ cả 2 chuẩn tên biến (cno cũ và cno_dbhz mới)
+    cno: Optional[float] = None      
+    cno_dbhz: Optional[float] = None 
+    
     used_in_fix: Optional[bool] = None
     receiver_ids: List[str] = []
 

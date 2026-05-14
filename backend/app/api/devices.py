@@ -322,6 +322,35 @@ def resolve_alarm(alarm_id: int, current_user: User = Depends(get_current_user),
     alarm.resolved_at = datetime.now(timezone.utc)
     db.commit()
     return {"message": "Đã xử lý cảnh báo"}
+@router.delete("/api/alarms/{alarm_id}")
+async def delete_alarm(
+    alarm_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Xóa một cảnh báo. 
+    Bảo mật: Phải JOIN với bảng Device để đảm bảo user hiện tại là chủ sở hữu thiết bị.
+    """
+    # Tìm cảnh báo và xác thực quyền sở hữu trong 1 truy vấn duy nhất
+    alarm = db.query(Alarm).join(Device).filter(
+        Alarm.id == alarm_id,
+        Device.owner_id == current_user.id  # <-- Chặn đứng việc xóa data chéo tài khoản
+    ).first()
+
+    if not alarm:
+        raise HTTPException(
+            status_code=404, 
+            detail="Không tìm thấy cảnh báo hoặc bạn không có quyền xóa dữ liệu này!"
+        )
+
+    try:
+        db.delete(alarm)
+        db.commit()
+        return {"status": "success", "message": "Đã xóa cảnh báo thành công"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Lỗi database: {str(e)}")
 # ==========================================
 # 1. LẤY DANH SÁCH FILE CỦA THIẾT BỊ
 # ==========================================

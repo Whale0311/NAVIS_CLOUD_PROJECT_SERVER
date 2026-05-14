@@ -29,9 +29,8 @@ const Dashboard = () => {
 
     useEffect(() => {
         let isMounted = true; 
-        let wsConnections = []; // Mảng chứa các vòi WebSocket
 
-        // 1. HÀM GỌI API LẤY DATA KHỞI TẠO (CHỈ CHẠY 1 LẦN)
+        // 1. HÀM GỌI API LẤY DATA KHỞI TẠO
         const fetchDashboardData = async () => {
             const token = localStorage.getItem("navis_token");
             try {
@@ -67,28 +66,29 @@ const Dashboard = () => {
                                 return {
                                     name: dev.device_id,
                                     is_active: isOnline, 
-                                    cno: isOnline ? (telData[0].avg_cno || 0) : 0, 
-                                    sat: isOnline ? (telData[0].sat_count || 0) : 0  
+                                    // ÉP NÓ TÌM ĐÚNG BIẾN CHUẨN MỚI TỪ API
+                                    cno: isOnline ? (telData[0].avg_cno_dbhz ?? telData[0].avg_cno ?? 0) : 0, 
+                                    sat: isOnline ? (telData[0].sat_count ?? 0) : 0,
+                                    last_seen: telData[0].timestamp 
                                 };
                             }
                         }
                     } catch (error) { console.error(`Lỗi tải tín hiệu ${dev.device_id}`); }
                     
-                    return { name: dev.device_id, is_active: false, cno: 0, sat: 0 };
+                    return { name: dev.device_id, is_active: false, cno: 0, sat: 0, last_seen: null };
                 });
 
                 const devicesWithTelemetry = await Promise.all(telemetryPromises);
                 
                 if (isMounted) {
-                    devicesRef.current = devicesWithTelemetry; // Lưu vào não bộ
-                    updateDashboard(devicesWithTelemetry);     // Vẽ lên UI
-                    setupWebSockets(dbDevices);                // Kích hoạt Radar
+                    devicesRef.current = devicesWithTelemetry; 
+                    updateDashboard(devicesWithTelemetry);     
                 }
 
             } catch (error) { console.error("Lỗi kết nối Server:", error); }
         };
 
-        // 2. HÀM TÍNH TOÁN LẠI BIỂU ĐỒ VÀ KPI
+        // 2. HÀM TÍNH TOÁN LẠI BIỂU ĐỒ VÀ KPI (ĐÃ FIX CHỈ TÍNH XE ONLINE)
         const updateDashboard = (dataList) => {
             if (!dataList || dataList.length === 0) return;
 
@@ -96,12 +96,15 @@ const Dashboard = () => {
             let labels = [], cnoData = [], satData = [];
 
             dataList.forEach(device => {
-                if(device.is_active) activeCount++;
-                if (device.cno > 0) {
-                    totalCno += device.cno;
-                    validCnoDevices++;
+                // CHỈ CỘNG VỆ TINH & CNO NẾU XE ĐANG ONLINE
+                if(device.is_active) {
+                    activeCount++;
+                    totalSat += device.sat;
+                    if (device.cno > 0) {
+                        totalCno += device.cno;
+                        validCnoDevices++;
+                    }
                 }
-                totalSat += device.sat;
 
                 labels.push(device.name);
                 cnoData.push(device.cno);
@@ -112,53 +115,82 @@ const Dashboard = () => {
                 total: dataList.length,
                 conn: activeCount,
                 cno: validCnoDevices > 0 ? (totalCno / validCnoDevices).toFixed(1) : "--",
-                sat: dataList.length > 0 ? Math.round(totalSat / dataList.length) : "--"
+                // CHIA CHO SỐ XE ONLINE THAY VÌ TỔNG SỐ XE
+                sat: activeCount > 0 ? Math.round(totalSat / activeCount) : "--" 
             });
 
             setChartData({ labels, cnoData, satData });
         };
 
-        // 3. HÀM MỞ ỐNG NƯỚC WEBSOCKET
-        const setupWebSockets = (devices) => {
-            wsConnections.forEach(ws => ws.close());
-            wsConnections = [];
+        // 3. LẮNG NGHE SỰ KIỆN TỪ SOCKET CONTEXT TOÀN CỤC
+        // 3. LẮNG NGHE SỰ KIỆN TỪ SOCKET CONTEXT TOÀN CỤC
+        // ===============================================
+        // DASHBOARD.JSX: LẮNG NGHE SỰ KIỆN TỪ SOCKET
+        // ===============================================
+        const handleGlobalUpdate = (event) => {
+            const msg = event.detail; 
+            
+            // CƠ CHẾ BẮT TỌA ĐỘ: Check theo chuẩn mới (có nhánh summary)
+            const isPosition = 
+                msg.event_type === "telemetry_update" || 
+                msg.event_type === "position_update" || 
+                (msg.data && msg.data.summary !== undefined);
 
-            devices.forEach(dev => {
-                const ws = new WebSocket(`ws://localhost:8000/ws/devices/${dev.device_id}`);
-                
-                ws.onmessage = (event) => {
-                    const msg = JSON.parse(event.data);
-                    
-                    // Nếu có tín hiệu (VD: position_update), ta cập nhật thiết bị đó thành Online
-                    if (msg.event_type === "position_update") {
-                        devicesRef.current = devicesRef.current.map(d => {
-                            if (d.name === msg.device_id) {
-                                return { ...d, is_active: true }; 
-                                // Nếu trong tương lai có bắn kèm CNO/SAT qua Socket, cập nhật luôn ở đây
-                            }
-                            return d;
-                        });
-
-                        updateDashboard([...devicesRef.current]);
+            if (isPosition) {
+                devicesRef.current = devicesRef.current.map(d => {
+                    // Chú ý: Ở Dashboard biến ID xe có thể lưu dưới dạng d.name
+                    if (d.name === msg.device_id || d.device_id === msg.device_id) {
+                        return { 
+                            ...d, 
+                            is_active: true, 
+                            // Móc dữ liệu từ nhánh summary
+                            cno: msg.data.summary?.avg_cno_dbhz || d.cno,
+                            sat: msg.data.summary?.sat_count || d.sat,
+                            last_seen: new Date().toISOString() 
+                        };
                     }
-                };
-
-                wsConnections.push(ws);
-            });
+                    return d;
+                });
+                
+                // Cập nhật lại UI Dashboard
+                updateDashboard([...devicesRef.current]);
+            }
         };
 
+        window.addEventListener('device_update', handleGlobalUpdate);
+        
         fetchDashboardData();
 
-        // 4. HÀM QUÉT DỌN NHỮNG THIẾT BỊ MẤT KẾT NỐI (15s quét 1 lần)
+        // 4. HÀM QUÉT DỌN THIẾT BỊ OFFLINE
         const cleanupInterval = setInterval(() => {
-            // Tạm thời chưa code logic ép offline, giữ nguyên để tránh lỗi UI
-        }, 15000); 
+            const now = new Date().getTime();
+            let hasChanges = false;
+            
+            devicesRef.current = devicesRef.current.map(d => {
+                if (d.last_seen && d.is_active) {
+                    let rawTime = d.last_seen;
+                    if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
+                    
+                    const timeDiff = now - new Date(rawTime).getTime();
+                    
+                    if (timeDiff > 15000) {
+                        hasChanges = true;
+                        return { ...d, is_active: false, cno: 0, sat: 0 };
+                    }
+                }
+                return d;
+            });
 
-        // 5. TẮT RADAR KHI CHUYỂN TRANG
+            if (hasChanges) {
+                updateDashboard([...devicesRef.current]); 
+            }
+        }, 5000);
+
+        // 5. TẮT TAI NGHE KHI CHUYỂN TRANG
         return () => { 
             isMounted = false; 
-            clearInterval(cleanupInterval); 
-            wsConnections.forEach(ws => ws.close()); 
+            window.removeEventListener('device_update', handleGlobalUpdate);
+            clearInterval(cleanupInterval);
         };
     }, []);
 
