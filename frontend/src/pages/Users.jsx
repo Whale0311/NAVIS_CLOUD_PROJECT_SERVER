@@ -7,7 +7,7 @@ import { Users as UsersIcon, UserPlus, KeyRound, Trash2, X, ShieldCheck, User } 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const API_URL = "http://127.0.0.1:8000/api/users";
+const API_URL = "/api/users";
 
 const Users = () => {
     const navigate = useNavigate();

@@ -9,7 +9,13 @@ export const SocketProvider = ({ children }) => {
     const connectDevice = (deviceId) => {
         if (sockets.current[deviceId]) return;
 
-        const ws = new WebSocket(`ws://localhost:8000/ws/devices/${deviceId}`);
+        // Tự động nhận diện giao thức (HTTP -> ws, HTTPS -> wss)
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+// Lấy đúng tên miền hoặc IP hiện tại của người dùng (bao gồm cả port nếu chạy local)
+const host = window.location.host; 
+
+// Ghép lại thành URL động
+const ws = new WebSocket(`${protocol}//${host}/ws/devices/${deviceId}`);
         
         ws.onmessage = (event) => {
             const msg = JSON.parse(event.data);
@@ -47,7 +53,7 @@ export const SocketProvider = ({ children }) => {
     const initAllDevices = async () => {
         const token = localStorage.getItem("navis_token");
         try {
-            const res = await fetch("http://localhost:8000/api/devices", {
+            const res = await fetch("/api/devices", {
                 headers: { "Authorization": `Bearer ${token}` }
             });
             const devices = await res.json();

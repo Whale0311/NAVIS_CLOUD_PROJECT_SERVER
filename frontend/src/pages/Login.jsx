@@ -52,7 +52,7 @@ const Login = () => {
         if (!validateEmail(formData.email)) return toast.error("Định dạng email không hợp lệ!");
         
         try {
-            const response = await fetch("http://127.0.0.1:8000/api/login", {
+            const response = await fetch("/api/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: formData.email, password: formData.password })
@@ -75,7 +75,7 @@ const Login = () => {
         if(password !== confirmPass) return toast.error("Mật khẩu xác nhận không khớp!");
         
         try {
-            const response = await fetch("http://127.0.0.1:8000/api/register", {
+            const response = await fetch("/api/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password, invitation_code: code })
@@ -95,7 +95,7 @@ const Login = () => {
         if(!validateEmail(formData.email)) return toast.error("Định dạng email không hợp lệ!");
         
         try {
-            const response = await fetch("http://127.0.0.1:8000/api/forgot-password", {
+            const response = await fetch("/api/forgot-password", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: formData.email })

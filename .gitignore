@@ -117,3 +117,13 @@ benchmarks/
 
 # IDE settings per developer
 .editorconfig.local
+super_simulator.py
+test_acl.py
+test_raw.py
+docker-compose.yml
+Navis DB.sesion.sql
+MQTT_SETUP.md
+hardware_simulator.py
+backend.zip
+frontend.zip
+backend/storage/

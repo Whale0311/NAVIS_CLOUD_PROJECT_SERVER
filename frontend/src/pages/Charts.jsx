@@ -83,7 +83,7 @@ const Charts = () => {
         const loadDevices = async () => {
             const token = localStorage.getItem("navis_token");
             try {
-                const res = await fetch("http://127.0.0.1:8000/api/devices", {
+                const res = await fetch("/api/devices", {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
                 if (!res.ok) return;
@@ -117,7 +117,7 @@ const Charts = () => {
         const loadHistory = async () => {
             const token = localStorage.getItem("navis_token");
             try {
-                const res = await fetch(`http://127.0.0.1:8000/api/devices/${selectedDeviceId}/telemetry?limit=${MAX_HISTORY}`, {
+                const res = await fetch(`/api/devices/${selectedDeviceId}/telemetry?limit=${MAX_HISTORY}`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
                 const dataArray = await res.json();

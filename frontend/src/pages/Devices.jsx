@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { HardDrive, LineChart, Trash2, X, Plus, Search, Settings } from 'lucide-react';
+import { HardDrive, LineChart, Trash2, X, Plus, Search, Settings, MoreVertical } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const API_URL = "http://127.0.0.1:8000/api/devices";
+const API_URL = "/api/devices";
 
 const Devices = () => {
     const navigate = useNavigate();
@@ -19,7 +19,15 @@ const Devices = () => {
         device_id: '',
         device_type: 'UBX'
     });
+    const [openMenuId, setOpenMenuId] = useState(null);
 
+    useEffect(() => {
+        const handleClickOutside = () => {
+            setOpenMenuId(null);
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, []);
     // Fetch dữ liệu khi load trang
     const loadDevices = async () => {
         const token = localStorage.getItem("navis_token");
@@ -151,17 +159,16 @@ const Devices = () => {
                             </button>
                         </div>
                     </div>
-
-                    {/* Bảng Dữ Liệu */}
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+{/* Bảng Dữ Liệu */}
+<div style={{ overflow: 'visible', paddingBottom: '80px' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>
                                 <tr>
                                     <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Device ID</th>
                                     <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Loại (Type)</th>
                                     <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Kết nối lần cuối</th>
                                     <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Chủ sở hữu</th>
-                                    <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', textAlign: 'right' }}>Hành động</th>
+                                    <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>Hành động</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -198,38 +205,64 @@ const Devices = () => {
                                             <td style={{ padding: '18px 10px', color: '#e2e8f0', fontSize: '0.95rem' }}>
                                                 {dev.owner_email || 'N/A'}
                                             </td>
-                                            <td style={{ padding: '18px 10px', textAlign: 'right' }}>
-                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                                    {/* ==== THÊM NÚT NÀY VÀO ĐẦU TIÊN ==== */}
-                                                    <button 
-                                                        onClick={() => navigate(`/devices/${dev.device_id}`)}
-                                                        style={{ background: 'rgba(59, 130, 246, 0.1)', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', color: '#3b82f6', transition: 'all 0.2s' }}
-                                                        title="Quản lý chi tiết"
-                                                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'}
-                                                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'}
-                                                    >
-                                                        <Settings size={18} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => navigate(`/charts?id=${dev.device_id}`)}
-                                                        style={{ background: 'rgba(16, 185, 129, 0.1)', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', color: '#10b981', transition: 'all 0.2s' }}
-                                                        title="Xem biểu đồ"
-                                                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.2)'}
-                                                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)'}
-                                                    >
-                                                        <LineChart size={18} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDelete(dev.id)}
-                                                        style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', color: '#ef4444', transition: 'all 0.2s' }}
-                                                        title="Xóa vĩnh viễn"
-                                                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
-                                                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                </div>
-                                            </td>
+                                            <td style={{ padding: '18px 10px', textAlign: 'center', position: 'relative' }}>
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setOpenMenuId(openMenuId === dev.id ? null : dev.id);
+                                                    }}
+                                                    style={{ background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer', padding: '5px' }}
+                                                >
+                                                    <MoreVertical size={20} />
+                                                </button>
+
+                                                {openMenuId === dev.id && (
+                                                    <div style={{ position: 'absolute', right: '30px', top: '15px', background: '#2a2d32', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '5px', width: '150px', zIndex: 10, boxShadow: '0 10px 15px rgba(0,0,0,0.5)' }}>
+                                                        
+                                                        {/* Nút Quản lý */}
+                                                        <button 
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                navigate(`/devices/${dev.device_id}`); 
+                                                                setOpenMenuId(null); 
+                                                            }}
+                                                            style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px' }}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                        >
+                                                            <Settings size={16} /> Quản lý
+                                                        </button>
+
+                                                        {/* Nút Biểu đồ */}
+                                                        <button 
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                navigate(`/charts?id=${dev.device_id}`); 
+                                                                setOpenMenuId(null); 
+                                                            }}
+                                                            style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                        >
+                                                            <LineChart size={16} /> Biểu đồ
+                                                        </button>
+
+                                                        {/* Nút Xóa */}
+                                                        <button 
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                handleDelete(dev.id); 
+                                                                setOpenMenuId(null); 
+                                                            }}
+                                                            style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                        >
+                                                            <Trash2 size={16} /> Xóa thiết bị
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                </td>
                                         </tr>
                                     ))
                                 )}

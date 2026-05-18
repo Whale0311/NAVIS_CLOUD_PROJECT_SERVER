@@ -39,7 +39,7 @@ npm install
 Tạo file `.env.local` trong thư mục frontend (nếu cần):
 
 ```env
-VITE_API_URL=http://localhost:8000
+VITE_API_URL=
 VITE_APP_NAME=Navis Cloud
 ```
 
@@ -123,7 +123,7 @@ File `.eslintrc.cjs` cung cấp:
 ## 🔗 Kết Nối Backend
 
 Frontend kết nối với backend thông qua:
-- **Base URL**: `http://localhost:8000`
+- **Base URL**: ``
 - **Endpoints**:
   - `POST /api/auth/login` - Đăng nhập
   - `GET /api/devices` - Lấy danh sách thiết bị

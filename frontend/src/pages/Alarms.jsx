@@ -2,16 +2,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { BellRing, AlertOctagon, AlertTriangle, CheckCircle, ShieldAlert } from 'lucide-react';
-// Import Toastify để hiển thị thông báo xịn xò
+import { BellRing, AlertOctagon, AlertTriangle, CheckCircle, ShieldAlert, MoreVertical, Trash2, Check } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const API_URL = "http://127.0.0.1:8000/api/alarms";
+const API_URL = "/api/alarms";
 
 const Alarms = () => {
     const navigate = useNavigate();
     const [alarms, setAlarms] = useState([]);
+    const [openMenuId, setOpenMenuId] = useState(null);
+
+    useEffect(() => {
+        const handleClickOutside = () => {
+            setOpenMenuId(null);
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, []);
     // 1. HÀM TẢI DỮ LIỆU TỪ DB (Chỉ gọi khi load trang hoặc khi có báo động mới)
     const loadAlarms = async () => {
         const token = localStorage.getItem("navis_token");
@@ -84,7 +92,7 @@ const Alarms = () => {
 
         const token = localStorage.getItem("navis_token");
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/alarms/${alarmId}`, {
+            const response = await fetch(`/api/alarms/${alarmId}`, {
                 method: "DELETE",
                 headers: { 
                     "Authorization": `Bearer ${token}` 
@@ -168,8 +176,9 @@ const Alarms = () => {
                         Lịch sử sự kiện
                     </div>
                     
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    {/* Bảng Dữ Liệu */}
+<div style={{ overflow: 'visible', paddingBottom: '80px' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>
                                 <tr>
                                     <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Thời gian</th>
@@ -177,7 +186,7 @@ const Alarms = () => {
                                     <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Mức độ</th>
                                     <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Mô tả sự kiện</th>
                                     <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Trạng thái</th>
-                                    <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', textAlign: 'right' }}>Hành động</th>
+                                    <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', textAlign: 'center' }}>Hành động</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -216,44 +225,46 @@ const Alarms = () => {
                                                     </span>
                                                 )}
                                             </td>
-                                            <td style={{ padding: '18px 10px', textAlign: 'right' }}>
-                                                {alarm.status === 'Active' ? (
-                                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                            <td style={{ padding: '18px 10px', textAlign: 'center', position: 'relative' }}>
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setOpenMenuId(openMenuId === alarm.id ? null : alarm.id);
+                                                    }}
+                                                    style={{ background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer', padding: '5px' }}
+                                                >
+                                                    <MoreVertical size={20} />
+                                                </button>
+
+                                                {openMenuId === alarm.id && (
+                                                    <div style={{ position: 'absolute', right: '30px', top: '15px', background: '#2a2d32', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '5px', width: '130px', zIndex: 10, boxShadow: '0 10px 15px rgba(0,0,0,0.5)' }}>
+                                                        
+                                                        {alarm.status === 'Active' && (
+                                                            <button 
+                                                                onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    handleResolve(alarm.id); 
+                                                                    setOpenMenuId(null); 
+                                                                }}
+                                                                style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px' }}
+                                                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                            >
+                                                                <Check size={16} /> Xử lý
+                                                            </button>
+                                                        )}
+
                                                         <button 
-                                                            onClick={() => handleResolve(alarm.id)}
-                                                            style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', transition: 'all 0.2s' }}
-                                                            onMouseOver={(e) => { e.currentTarget.style.background = '#10b981'; e.currentTarget.style.color = '#131517'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                                                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)'; e.currentTarget.style.color = '#10b981'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                handleDeleteAlarm(alarm.id); 
+                                                                setOpenMenuId(null); 
+                                                            }}
+                                                            style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                                                         >
-                                                            ✔ Xử lý
-                                                        </button>
-                                                        {/* Nút Xóa cho cảnh báo đang Active (nếu muốn xóa luôn không cần xử lý) */}
-                                                        <button 
-                                                            onClick={() => handleDeleteAlarm(alarm.id)}
-                                                            style={{ background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', cursor: 'pointer', padding: '8px 12px', borderRadius: '8px', transition: 'all 0.2s', display: 'flex', alignItems: 'center' }}
-                                                            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
-                                                            onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                                                            title="Xóa vĩnh viễn"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                                <path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                                        {/* ĐÂY LÀ NÚT XÓA THAY THẾ CHO CHỮ "ĐÃ LƯU TRỮ" CŨ */}
-                                                        <button 
-                                                            onClick={() => handleDeleteAlarm(alarm.id)}
-                                                            style={{ background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                                                            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'; e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.6)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                                                            onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.3)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                                                            title="Xóa vĩnh viễn sự kiện này"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                                <path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                                                            </svg>
-                                                            Xóa
+                                                            <Trash2 size={16} /> Xóa
                                                         </button>
                                                     </div>
                                                 )}

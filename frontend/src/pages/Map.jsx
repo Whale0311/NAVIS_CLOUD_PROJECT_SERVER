@@ -50,7 +50,7 @@ const MapPage = () => {
         const fetchDevices = async () => {
             const token = localStorage.getItem("navis_token");
             try {
-                const response = await fetch("http://127.0.0.1:8000/api/devices", {
+                const response = await fetch("/api/devices", {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
                 if (!response.ok) return;
@@ -59,7 +59,7 @@ const MapPage = () => {
                 // Kéo thêm nhịp tim cuối cùng cho từng xe
                 const telemetryPromises = dbDevices.map(async (dev) => {
                     try {
-                        const telRes = await fetch(`http://127.0.0.1:8000/api/devices/${dev.device_id}/telemetry?limit=1`, {
+                        const telRes = await fetch(`/api/devices/${dev.device_id}/telemetry?limit=1`, {
                             headers: { "Authorization": `Bearer ${token}` }
                         });
                         if (telRes.ok) {
@@ -216,7 +216,7 @@ const MapPage = () => {
 
         const token = localStorage.getItem("navis_token");
         try {
-            const res = await fetch(`http://127.0.0.1:8000/api/devices/${dev.device_id}/telemetry?limit=1`, {
+            const res = await fetch(`/api/devices/${dev.device_id}/telemetry?limit=1`, {
                 headers: { "Authorization": `Bearer ${token}` }
             });
             

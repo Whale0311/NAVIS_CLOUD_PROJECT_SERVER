@@ -60,7 +60,7 @@ const DeviceDetail = () => {
     useEffect(() => {
         if (activeTab === 'files') {
             const token = localStorage.getItem("navis_token");
-            fetch(`http://localhost:8000/api/devices/${deviceId}/files`, {
+            fetch(`/api/devices/${deviceId}/files`, {
                 headers: { "Authorization": `Bearer ${token}` }
             })
             .then(res => res.json())
@@ -74,7 +74,7 @@ const DeviceDetail = () => {
         setIsSendingCmd(true);
         const token = localStorage.getItem("navis_token");
         try {
-            const res = await fetch(`http://localhost:8000/api/devices/${deviceId}/command/${cmdType}`, {
+            const res = await fetch(`/api/devices/${deviceId}/command/${cmdType}`, {
                 method: 'POST',
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                 body: JSON.stringify({ payload: customPayload })
@@ -101,7 +101,7 @@ const DeviceDetail = () => {
         const toastId = toast.loading("Đang tải dữ liệu...");
         const token = localStorage.getItem("navis_token");
         try {
-            const res = await fetch(`http://localhost:8000/api/files/download/${fileId}`, {
+            const res = await fetch(`/api/files/download/${fileId}`, {
                 headers: { "Authorization": `Bearer ${token}` }
             });
             if (!res.ok) throw new Error("Không thể tải file");
@@ -129,7 +129,7 @@ const DeviceDetail = () => {
         if(window.confirm("CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn file dữ liệu này? Không thể khôi phục lại!")) {
             const token = localStorage.getItem("navis_token");
             try {
-                const res = await fetch(`http://localhost:8000/api/files/${fileId}`, {
+                const res = await fetch(`/api/files/${fileId}`, {
                     method: 'DELETE',
                     headers: { "Authorization": `Bearer ${token}` }
                 });

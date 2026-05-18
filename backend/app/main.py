@@ -10,8 +10,10 @@ from app.models import schema
 from app.api import auth, devices, telemetry
 from app.models.schema import Telemetry, User
 from app.core.security import get_password_hash
+
 schema.Base.metadata.create_all(bind=engine)
 load_dotenv()
+
 # Vẫn giữ nguyên hàm dọn rác
 async def cleanup_old_telemetry_task():
     while True:
@@ -29,18 +31,13 @@ async def cleanup_old_telemetry_task():
             db.close()
         await asyncio.sleep(600)
 
-# =======================================================
-# MỚI: QUẢN LÝ VÒNG ĐỜI (LIFESPAN) THAY CHO ON_EVENT
-# =======================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
-        # Lấy email và password từ file .env
         admin_email = os.getenv("DEFAULT_ADMIN_EMAIL")
         admin_pw = os.getenv("DEFAULT_ADMIN_PASSWORD")
 
-        # Đảm bảo các biến môi trường này có tồn tại trước khi tạo
         if admin_email and admin_pw:
             existing_admin = db.query(User).filter(User.email == admin_email).first()
             if not existing_admin:
@@ -55,17 +52,22 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
         
-    # Những gì viết trên 'yield' sẽ chạy lúc khởi động server
     task = asyncio.create_task(cleanup_old_telemetry_task())
     print("🚀 Background Task: Auto-cleanup Telemetry đã khởi động!")
     
     yield 
     
-    # Chạy khi server tắt
     task.cancel()
 
-# Gắn lifespan vào lúc khởi tạo FastAPI
-app = FastAPI(title="Navis-Cloud API Backend", lifespan=lifespan)
+# ==========================================
+# CẬP NHẬT: DỜI TÀI LIỆU SANG /api/docs
+# ==========================================
+app = FastAPI(
+    title="Navis-Cloud API Backend", 
+    lifespan=lifespan,
+    docs_url="/api/docs",        # Chuyển Swagger UI sang đây
+    openapi_url="/api/openapi.json"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -79,6 +81,7 @@ app.include_router(auth.router)
 app.include_router(devices.router)
 app.include_router(telemetry.router)
 
-@app.get("/")
+# Dành riêng cho kiểm tra sức khỏe
+@app.get("/api")
 def read_root():
     return {"message": "Backend sẵn sàng!"}
