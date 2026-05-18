@@ -127,3 +127,4 @@ hardware_simulator.py
 backend.zip
 frontend.zip
 backend/storage/
+.continue/
