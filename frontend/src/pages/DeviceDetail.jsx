@@ -15,7 +15,7 @@ const DeviceDetail = () => {
     // State cho UI
     const [openMenuId, setOpenMenuId] = useState(null);
     const [showGuide, setShowGuide] = useState(false); // State bật/tắt cẩm nang lệnh
-    const commandTemplates = {
+    const commandTemplates = { 
         set_rate: '{\n  "interval_ms": 5000\n}',
         update_fw: '{\n  "version": "1.0.2"\n}',
         set_mode: '{\n  "mode": "rtk"\n}'
@@ -69,31 +69,43 @@ const DeviceDetail = () => {
         }
     }, [activeTab, deviceId]);
 
-    // 3. GỬI LỆNH (CÓ TIMEOUT)
-    const sendCommand = async (cmdType, customPayload = {}) => {
-        setIsSendingCmd(true);
-        const token = localStorage.getItem("navis_token");
-        try {
-            const res = await fetch(`/api/devices/${deviceId}/command/${cmdType}`, {
-                method: 'POST',
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                body: JSON.stringify({ payload: customPayload })
-            });
-            if(res.ok) {
-                // HIỂN THỊ LOADING VÀ LƯU ID LẠI
-                toastIdRef.current = toast.loading(`Đang gửi lệnh ${cmdType}, chờ phản hồi...`);
-                
-                timeoutRef.current = setTimeout(() => {
-                    setIsSendingCmd(false);
-                    // UPDATE LẠI THÔNG BÁO NẾU TIMEOUT (Tự động tắt sau 3s)
-                    toast.update(toastIdRef.current, { render: "Thiết bị không phản hồi (Timeout)!", type: "warning", isLoading: false, autoClose: 3000 });
-                }, 10000);
-            } else throw new Error();
-        } catch (error) {
+    // 3. GỬI LỆNH (CÓ TIMEOUT - ĐÃ FIX RACE CONDITION)
+const sendCommand = async (cmdType, customPayload = {}) => {
+    setIsSendingCmd(true);
+    const token = localStorage.getItem("navis_token");
+    
+    // ========================================================
+    // BƯỚC 1: BẬT LOADING VÀ ĐẾM NGƯỢC NGAY LẬP TỨC TRƯỚC KHI GỬI API
+    // ========================================================
+    toastIdRef.current = toast.loading(`Đang gửi lệnh ${cmdType}, chờ phản hồi...`);
+    
+    timeoutRef.current = setTimeout(() => {
+        setIsSendingCmd(false);
+        toast.update(toastIdRef.current, { render: "Thiết bị không phản hồi (Timeout)!", type: "warning", isLoading: false, autoClose: 3000 });
+    }, 10000);
+
+    // ========================================================
+    // BƯỚC 2: BẮT ĐẦU GỬI API CHO SERVER
+    // ========================================================
+    try {
+        const res = await fetch(`/api/devices/${deviceId}/command/${cmdType}`, {
+            method: 'POST',
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+            body: JSON.stringify({ payload: customPayload })
+        });
+        
+        // Nếu Server lỗi (500) hoặc lỗi xác thực (401), phải hủy đồng hồ đếm ngược ngay
+        if (!res.ok) {
+            clearTimeout(timeoutRef.current);
+            toast.update(toastIdRef.current, { render: "Lỗi Server khi gửi lệnh!", type: "error", isLoading: false, autoClose: 3000 });
             setIsSendingCmd(false);
-            toast.error("Lỗi mạng khi gửi lệnh!");
         }
-    };
+    } catch (error) {
+        clearTimeout(timeoutRef.current);
+        toast.update(toastIdRef.current, { render: "Lỗi mạng khi gửi lệnh!", type: "error", isLoading: false, autoClose: 3000 });
+        setIsSendingCmd(false);
+    }
+};
 
     // 4. TẢI FILE
     const handleDownloadFile = async (fileId, fileName) => {

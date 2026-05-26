@@ -52,37 +52,39 @@ const Devices = () => {
     }, []);
 
     // Xử lý thêm thiết bị mới
-    const handleAddSubmit = async (e) => {
-        e.preventDefault();
-        const token = localStorage.getItem("navis_token");
-        try {
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}` 
-                },
-                body: JSON.stringify({
-                    device_id: newDevice.device_id,
-                    name: newDevice.device_id, // Tạm mượn ID làm Name
-                    device_type: newDevice.device_type,
-                    is_active: true
-                })
-            });
-            
-            const data = await res.json();
-            if (res.ok) {
-                setIsModalOpen(false);
-                setNewDevice({ device_id: '', device_type: 'UBX' });
-                toast.success("Đã thêm thiết bị mới thành công!");
-                loadDevices(); // Refresh list
-            } else {
-                toast.error("Lỗi: " + (data.detail || "Không thể tạo thiết bị"));
-            }
-        } catch (error) {
-            toast.error("Lỗi kết nối Server");
+const handleAddSubmit = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem("navis_token");
+    try {
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}` 
+            },
+            body: JSON.stringify({
+                device_id: newDevice.device_id,
+                name: newDevice.device_id, // ID làm Name
+                device_type: newDevice.device_type,
+                site_id: newDevice.site_id, // <--- THÊM DÒNG NÀY ĐỂ GỬI SITE_ID LÊN SERVER
+                is_active: true
+            })
+        });
+        
+        const data = await res.json();
+        if (res.ok) {
+            setIsModalOpen(false);
+            // CẬP NHẬT: Reset thêm cả trường site_id về rỗng
+            setNewDevice({ device_id: '', device_type: 'UBX', site_id: '' }); 
+            toast.success("Đã thêm thiết bị mới thành công!");
+            loadDevices(); // Refresh list
+        } else {
+            toast.error("Lỗi: " + (data.detail || "Không thể tạo thiết bị"));
         }
-    };
+    } catch (error) {
+        toast.error("Lỗi kết nối Server");
+    }
+};
 
     // Xử lý xóa thiết bị
     const handleDelete = async (id) => {
@@ -303,6 +305,21 @@ const Devices = () => {
                                     onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.05)'}
                                 />
                             </div>
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Site ID</label>
+                                <input 
+                                    type="text" 
+                                    required 
+                                    placeholder="VD: phong_lab_302" 
+                                    value={newDevice.site_id || ''} // Phòng hờ nếu chưa khởi tạo state
+                                    onChange={(e) => setNewDevice({...newDevice, site_id: e.target.value})}
+                                    style={{ width: '100%', padding: '14px', background: '#131517', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', color: 'white', outline: 'none', transition: 'border-color 0.3s' }}
+                                    onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                                    onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.05)'}
+                                />
+                            </div>
+
+                            {/* Ô chọn Loại thiết bị cũ của bạn giữ nguyên */}
                             <div style={{ marginBottom: '25px' }}>
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Loại thiết bị (Type)</label>
                                 <select 

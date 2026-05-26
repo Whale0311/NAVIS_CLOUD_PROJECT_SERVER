@@ -197,7 +197,7 @@ const Alarms = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    alarms.map(alarm => (
+                                    alarms.slice(0, 50).map(alarm => (
                                         <tr key={alarm.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background-color 0.2s' }}>
                                             <td style={{ padding: '18px 10px', color: '#a3a3a3', fontSize: '0.95rem' }}>{formatTime(alarm.time)}</td>
                                             <td style={{ padding: '18px 10px', fontWeight: '600', color: '#ffffff' }}>

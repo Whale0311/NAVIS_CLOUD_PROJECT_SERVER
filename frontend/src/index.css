@@ -1,11 +1,28 @@
 /* src/index.css */
 @import "leaflet/dist/leaflet.css";
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+html {
+    font-size: 16px;
+}
+
+*, *::before, *::after { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+}
+
 body { 
-    background-color: #050505; /* Reset lại body cho trang Dashboard sau này */
+    background-color: #131517; /* Dùng nền đen nhám xịn của bạn */
     color: #ffffff; 
+    /* Ưu tiên font Inter hiện đại, nếu máy không có mới lùi về Segoe UI */
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
     overflow-x: hidden;
+    
+    /* VŨ KHÍ BÍ MẬT: CHỐNG CHỮ BỊ "BÉO" KHI DEPLOY */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
 }
 
 
@@ -328,16 +345,17 @@ body {
     width: 100%; height: 2px; 
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); 
 }
-/* Marker khi mất kết nối: Màu xám, không có hiệu ứng pulse */
 .offline-marker { 
-    width: 22px; 
-    height: 22px; 
-    background: #737373; 
-    border-radius: 50%; 
-    border: 3px solid #404040; 
-    cursor: pointer;
-    filter: grayscale(1);
-    opacity: 0.6;
+    width: 20px !important; 
+    height: 20px !important; 
+    background: #a3a3a3 !important; 
+    border-radius: 50% !important; 
+    border: 3px solid #ffffff !important; /* Viền trắng tinh */
+    box-shadow: 0 0 10px rgba(0,0,0,0.8), 0 0 5px rgba(255,255,255,0.5) !important; /* Đổ bóng viền */
+    cursor: pointer !important;
+    filter: none !important; /* Xóa sạch mọi filter làm mờ cũ */
+    opacity: 1 !important; /* Hiển thị 100% */
+    z-index: 1000 !important; /* Ép nổi lên trên các khối nhà */
 }
 /* Vô hiệu hóa icon mật khẩu gốc của Microsoft Edge */
 input[type="password"]::-ms-reveal,
@@ -353,13 +371,7 @@ input[type="password"]::-webkit-credentials-input-type-reveal {
     pointer-events: none;
     display: none !important;
 }
-/* Màu nền tổng thể cho app (Bạn có thể đặt vào thẻ body hoặc bao ngoài Layout) */
-body {
-    background-color: #131517; /* Đen nhám */
-    color: #ffffff;
-    font-family: 'Inter', system-ui, sans-serif;
-    margin: 0;
-}
+
 
 .dashboard-container {
     padding: 24px;

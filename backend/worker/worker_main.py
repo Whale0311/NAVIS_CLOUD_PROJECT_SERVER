@@ -241,27 +241,28 @@ class MQTTSubscriber:
             if alarm_saved:
                 db.commit()
                 print(f"   🚨 Đã lưu cảnh báo vào Database!")
+                
+                # 3. BẮN WEBHOOK KÍCH HOẠT RADAR FRONTEND (Đã thụt lề vào trong if)
+                # Ta dùng raw_data để đảm bảo không bị lỗi object thời gian (datetime)
+                try:
+                    requests.post(
+                        f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
+                        json={
+                            "event_type": "alarm",
+                            "schema": "gnss.health.v1",
+                            "data": {
+                                "event_type": str(event_type),
+                                "severity": str(raw_data.get("severity", "Critical")),
+                                "message": str(raw_data.get("message", "Phát hiện sự cố bất thường!"))
+                            }
+                        },
+                        timeout=2
+                    )
+                except Exception as req_err:
+                    print(f"   ⚠️ Không thể bắn Webhook Alarm: {req_err}")
+
             else:
                 print(f"   ✅ Health data checked (Hệ thống ổn định)")
-
-            # 3. BẮN WEBHOOK KÍCH HOẠT RADAR FRONTEND
-            # Ta dùng raw_data để đảm bảo không bị lỗi object thời gian (datetime)
-            try:
-                requests.post(
-                    f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
-                    json={
-                        "event_type": "alarm",
-                        "schema": "gnss.health.v1",
-                        "data": {
-                            "event_type": str(event_type),
-                            "severity": str(raw_data.get("severity", "Critical")),
-                            "message": str(raw_data.get("message", "Phát hiện sự cố bất thường!"))
-                        }
-                    },
-                    timeout=2
-                )
-            except Exception as req_err:
-                print(f"   ⚠️ Không thể bắn Webhook Alarm: {req_err}")
 
         except Exception as e:
             print(f"   ❌ Lỗi handle_health_data: {e}")

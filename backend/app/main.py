@@ -19,11 +19,11 @@ async def cleanup_old_telemetry_task():
     while True:
         db = SessionLocal()
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(days=1)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=30)
             deleted_count = db.query(Telemetry).filter(Telemetry.timestamp < cutoff_time).delete()
             db.commit()
             if deleted_count > 0:
-                print(f"[Cleanup Task] Đã dọn dẹp {deleted_count} bản ghi GNSS cũ hơn 1 ngày.")
+                print(f"[Cleanup Task] Đã dọn dẹp {deleted_count} bản ghi GNSS cũ hơn 30 ngày.")
         except Exception as e:
             print(f"[Cleanup Error] Lỗi khi dọn dẹp Database: {e}")
             db.rollback()
