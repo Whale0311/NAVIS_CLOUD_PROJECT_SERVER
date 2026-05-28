@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from app.core.ws_manager import manager
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import load_only
 from pydantic import BaseModel
 import paho.mqtt.publish as mqtt_publish
 import uuid
@@ -357,10 +358,10 @@ async def delete_alarm(
 @router.get("/api/devices/{device_id}/files", response_model=List[RawFileResponse])
 def get_device_files(
     device_id: str,
+    limit: int = 100, # Thêm tham số limit an toàn
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Tìm thiết bị và kiểm tra quyền sở hữu
     device = db.query(Device).filter(Device.device_id == device_id).first()
     if not device:
         raise HTTPException(status_code=404, detail="Thiết bị không tồn tại")
@@ -368,11 +369,13 @@ def get_device_files(
     if device.owner_id != current_user.id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập file của thiết bị này")
 
-    # Lấy danh sách file log, sắp xếp mới nhất lên đầu
-    logs = db.query(RawDataLog).filter(RawDataLog.device_id == device.id)\
-             .order_by(RawDataLog.timestamp.desc()).all()
+    logs = db.query(RawDataLog)\
+             .filter(RawDataLog.device_id == device.id)\
+             .options(load_only(RawDataLog.id, RawDataLog.timestamp, RawDataLog.file_path))\
+             .order_by(RawDataLog.timestamp.desc())\
+             .limit(limit)\
+             .all()
     
-    # Chỉnh sửa lại kết quả để lấy tên file từ đường dẫn tuyệt đối
     for log in logs:
         log.file_name = os.path.basename(log.file_path)
         
