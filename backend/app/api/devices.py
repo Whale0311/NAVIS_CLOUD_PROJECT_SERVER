@@ -71,17 +71,24 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     if user is None:
         raise HTTPException(status_code=401, detail="Không tìm thấy người dùng")
     return user
+import uuid
+from datetime import datetime, timezone
+import json
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+# Giả sử bạn đã import các dependencies cần thiết như get_db, get_current_user, Device, MQTTConfig, mqtt_publish
+
 @router.post("/api/devices/{device_id}/command/{command_type}")
 def send_device_command(
     device_id: str, 
     command_type: str, 
-    command_data: CommandPayload, 
-    current_user: User = Depends(get_current_user),  # <-- 1. BỔ SUNG AUTHENTICATION (Bắt buộc có Token)
+    command_data: dict, # Đổi thành dict để nhận thẳng tham số động từ Frontend
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    API để Frontend gọi khi muốn bắn lệnh cấu hình xuống mạch phần cứng.
-    Ví dụ: command_type = 'reboot', 'set_rate', 'update_firmware'...
+    API để Frontend gọi khi muốn bắn lệnh UBLOX xuống mạch phần cứng.
+    Hỗ trợ: start, stop, restart, status, configure.
     """
     # 1. Tìm thiết bị trong DB để lấy đúng site_id
     device = db.query(Device).filter(Device.device_id == device_id).first()
@@ -89,27 +96,34 @@ def send_device_command(
         raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị trong Database!")
 
     # 2. BỔ SUNG AUTHORIZATION: Kiểm tra quyền sở hữu
-    # Nếu không phải chủ sở hữu và cũng không phải admin thì cấm gửi lệnh
     if device.owner_id != current_user.id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Bạn không có quyền điều khiển thiết bị này!")
 
-    site_id = device.site_id
+    site_id = device.site_id or "default_site" # Backup nếu site_id rỗng
 
-    # 3. Tạo Topic chuẩn theo Schema (Server -> Client)
-    topic = f"gnss/{site_id}/{device_id}/cmd/{command_type}/v1"
+    # 3. Tạo Topic chuẩn theo Schema (Server -> Client) (Mục 9.5)
+    # Thêm chữ "ublox" vào Topic
+    topic = f"gnss/{site_id}/{device_id}/cmd/ublox/{command_type}/v1"
 
-    # 4. Đóng gói Envelope JSON cực chuẩn
+    # 4. Đóng gói Envelope JSON chuẩn IoT
+    now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    unique_event_id = f"server-cmd-{uuid.uuid4().hex[:12]}"
+
     envelope = {
-        "schema": f"gnss.cmd.{command_type}.v1",
-        "event_id": f"server-{uuid.uuid4()}",
-        "seq": 1, # Tương lai có thể nâng cấp bộ đếm tăng dần
+        "schema": f"gnss.cmd.ublox.{command_type}.v1",
+        "event_id": unique_event_id,
+        "seq": 1, 
         "device_id": device_id,
         "site_id": site_id,
         "frontend": "ublox", 
-        "source": "server",  # Nguồn gốc là từ Backend
-        "event_time": None,  # Lệnh từ server nên không có event_time của GNSS
-        "ingest_time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "data": command_data.payload
+        "source": "server", 
+        "event_time": now_iso, 
+        "ingest_time": now_iso,
+        "data": {
+            "command_id": unique_event_id,
+            "command_type": command_type,
+            "params": command_data  # Payload từ Web truyền lên sẽ nằm gọn trong "params"
+        }
     }
 
     # 5. Bắn gói tin lên MQTT Broker
@@ -125,12 +139,11 @@ def send_device_command(
         )
         return {
             "status": "success", 
-            "message": f"Đã đẩy lệnh '{command_type}' xuống EMQX Broker!",
-            "topic": topic
+            "message": f"Đã đẩy lệnh '{command_type}' xuống thiết bị!",
+            "event_id": unique_event_id
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khi kết nối MQTT: {str(e)}")
-
 # ==========================================
 # 1. CREATE - THÊM THIẾT BỊ MỚI
 # ==========================================
