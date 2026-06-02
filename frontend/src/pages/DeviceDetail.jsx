@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import Layout from '../components/Layout';
 import { ArrowLeft, Terminal, Download, Info, Power, Loader2, MoreVertical, Trash2 } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 
@@ -15,18 +14,22 @@ const DeviceDetail = () => {
     // State cho UI
     const [openMenuId, setOpenMenuId] = useState(null);
     const [showGuide, setShowGuide] = useState(false); // State bật/tắt cẩm nang lệnh
-    const commandTemplates = { 
-        set_rate: '{\n  "interval_ms": 5000\n}',
-        update_fw: '{\n  "version": "1.0.2"\n}',
-        set_mode: '{\n  "mode": "rtk"\n}'
-    };
-    const [selectedCmd, setSelectedCmd] = useState('set_rate');
-    const [payloadText, setPayloadText] = useState(commandTemplates['set_rate']);
+    // =====================================
+    // STATE CHO 5 LỆNH CHUẨN UBLOX (SCHEMA 9.5)
+    // =====================================
+    const [selectedCmd, setSelectedCmd] = useState('start');
+    const [cmdParams, setCmdParams] = useState({ mode: 'realtime' }); // Lưu object params gửi đi
 
     const handleCmdChange = (e) => {
         const cmd = e.target.value;
         setSelectedCmd(cmd);
-        setPayloadText(commandTemplates[cmd]); // Tự động điền code mẫu vào ô JSON
+        
+        // Tự động load tham số mặc định chuẩn Schema khi đổi lệnh
+        if (cmd === 'start') setCmdParams({ mode: 'realtime' });
+        else if (cmd === 'stop') setCmdParams({ reason: 'user_requested' });
+        else if (cmd === 'restart') setCmdParams({ scope: 'pipeline' });
+        else if (cmd === 'status') setCmdParams({});
+        else if (cmd === 'configure') setCmdParams({ reference_svid: 3, min_sat_count: 4 });
     };
     // Ref để quản lý Timeout của lệnh gửi
     const timeoutRef = useRef(null);
@@ -91,7 +94,8 @@ const sendCommand = async (cmdType, customPayload = {}) => {
         const res = await fetch(`/api/devices/${deviceId}/command/${cmdType}`, {
             method: 'POST',
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-            body: JSON.stringify({ payload: customPayload })
+            // THAY ĐỔI: Truyền thẳng customPayload thay vì bọc trong { payload: ... }
+            body: JSON.stringify(customPayload) 
         });
         
         // Nếu Server lỗi (500) hoặc lỗi xác thực (401), phải hủy đồng hồ đếm ngược ngay
@@ -170,8 +174,7 @@ const sendCommand = async (cmdType, customPayload = {}) => {
     }, []);
 
     return (
-        <Layout>
-            <ToastContainer position="top-right" theme="dark" />
+        <>
             <div className="dashboard-container">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
                     <button onClick={() => navigate(-1)} style={{ background: '#1c1e22', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>
@@ -191,91 +194,111 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                         </button>
                     </div>
 
-                    {/* TAB ĐIỀU KHIỂN (2 Cột + Nút Info) */}
+                    {/* TAB ĐIỀU KHIỂN (2 Cột) */}
                     {activeTab === 'control' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
                             
-                            {/* Cột 1: Quick Actions */}
-                            <div style={{ background: '#131517', padding: '25px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                <h3 style={{ color: '#fff', marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Power size={20} color="#ef4444"/> Thao tác nhanh
+                            {/* CỘT 1: LỆNH HỆ THỐNG (SCHEMA 9.4) */}
+                            <div style={{ background: '#131517', padding: '25px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column' }}>
+                                <h3 style={{ color: '#fff', marginTop: 0, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Power size={20} color="#ef4444"/> Lệnh Hệ Thống
                                 </h3>
-                                <p style={{ color: '#8b8d93', fontSize: '0.9rem', marginBottom: '20px' }}>Lệnh thực thi ngay lập tức.</p>
-                                <button 
-                                    onClick={() => sendCommand('reboot', {})}
-                                    disabled={isSendingCmd}
-                                    style={{ background: isSendingCmd ? '#4b5563' : 'rgba(239, 68, 68, 0.1)', color: isSendingCmd ? '#a3a3a3' : '#ef4444', border: '1px solid', borderColor: isSendingCmd ? 'transparent' : '#ef4444', padding: '12px 24px', borderRadius: '8px', cursor: isSendingCmd ? 'not-allowed' : 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', width: '100%', justifyContent: 'center' }}
-                                >
-                                    {isSendingCmd ? <Loader2 size={18} className="spin" /> : <Power size={18} />}
-                                    {isSendingCmd ? 'Đang chờ mạch phản hồi...' : 'Khởi động lại (Reboot)'}
-                                </button>
+                                <p style={{ color: '#8b8d93', fontSize: '0.9rem', marginBottom: '25px' }}>
+                                    Tác động cấp thấp đến toàn bộ thiết bị phần cứng. Quá trình này có thể làm gián đoạn kết nối trong ít phút.
+                                </p>
+                                
+                                <div style={{ marginTop: 'auto' }}>
+                                    <button 
+                                        onClick={() => sendCommand('reboot', { scope: 'hardware' })}
+                                        disabled={isSendingCmd}
+                                        style={{ background: isSendingCmd ? '#4b5563' : 'rgba(239, 68, 68, 0.1)', color: isSendingCmd ? '#a3a3a3' : '#ef4444', border: '1px solid', borderColor: isSendingCmd ? 'transparent' : '#ef4444', padding: '12px 24px', borderRadius: '8px', cursor: isSendingCmd ? 'not-allowed' : 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', width: '100%', justifyContent: 'center', transition: 'all 0.2s' }}
+                                        onMouseOver={(e) => !isSendingCmd && (e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)')}
+                                        onMouseOut={(e) => !isSendingCmd && (e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)')}
+                                    >
+                                        {isSendingCmd ? <Loader2 size={18} className="spin" /> : <Power size={18} />}
+                                        {isSendingCmd ? 'Đang xử lý...' : 'Khởi động lại mạch (Reboot)'}
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Cột 2: Custom Command + Nút Cẩm nang */}
-                            <div style={{ background: '#131517', padding: '25px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                    <h3 style={{ color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Terminal size={20} color="#3b82f6"/> Gửi thông số
-                                    </h3>
-                                    
-                                    {/* Nút Info bật Cẩm Nang */}
-                                    <div style={{ position: 'relative' }}>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); setShowGuide(!showGuide); }}
-                                            style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                                            title="Xem cẩm nang lệnh"
-                                        >
-                                            <Info size={22} />
-                                        </button>
-
-                                        {/* Popup Cẩm nang (ẩn/hiện) */}
-                                        {showGuide && (
-                                            <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', top: '35px', right: '0', background: '#2a2d32', border: '1px solid rgba(16, 185, 129, 0.4)', borderRadius: '10px', padding: '15px', width: '280px', zIndex: 20, boxShadow: '0 10px 25px rgba(0,0,0,0.8)' }}>
-                                                <h4 style={{ color: '#10b981', margin: '0 0 10px 0' }}>Cẩm nang tập lệnh</h4>
-                                                <ul style={{ paddingLeft: '15px', color: '#a3a3a3', fontSize: '0.85rem', margin: 0 }}>
-                                                    <li style={{ marginBottom: '8px' }}><strong style={{color:'#fff'}}>set_rate</strong><br/><code>{"{ \"interval_ms\": 5000 }"}</code></li>
-                                                    <li style={{ marginBottom: '8px' }}><strong style={{color:'#fff'}}>update_fw</strong><br/><code>{"{ \"version\": \"1.0.2\" }"}</code></li>
-                                                    <li><strong style={{color:'#fff'}}>set_mode</strong><br/><code>{"{ \"mode\": \"rtk\" }"}</code></li>
-                                                </ul>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                            {/* CỘT 2: LỆNH MODULE UBLOX (SCHEMA 9.5) */}
+                            <div style={{ background: '#131517', padding: '25px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <h3 style={{ color: '#fff', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Terminal size={20} color="#3b82f6"/> Điều khiển Ublox Pipeline
+                                </h3>
+                                <p style={{ color: '#8b8d93', fontSize: '0.9rem', marginBottom: '20px' }}>
+                                    Can thiệp trực tiếp vào tiến trình thu thập dữ liệu vệ tinh GNSS mà không làm tắt thiết bị.
+                                </p>
 
                                 <div style={{ marginBottom: '15px' }}>
-                                    <label style={{ color: '#8b8d93', fontSize: '0.9rem', display: 'block', marginBottom: '8px' }}>Lệnh (Command)</label>
+                                    <label style={{ color: '#8b8d93', fontSize: '0.85rem', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Loại Lệnh</label>
                                     <select 
                                         value={selectedCmd}
                                         onChange={handleCmdChange}
-                                        style={{ width: '100%', padding: '12px 10px', background: '#1c1e22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', outline: 'none', cursor: 'pointer', appearance: 'none' }}
+                                        style={{ width: '100%', padding: '12px 15px', background: '#1c1e22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', outline: 'none', cursor: 'pointer', appearance: 'none', fontWeight: '500' }}
                                     >
-                                        <option value="set_rate">set_rate (Chỉnh tần số gửi tọa độ)</option>
-                                        <option value="update_fw">update_fw (Cập nhật Firmware)</option>
-                                        <option value="set_mode">set_mode (Đổi chế độ định vị)</option>
+                                        <option value="start">▶ Bắt đầu luồng dữ liệu (Start)</option>
+                                        <option value="stop">■ Dừng luồng dữ liệu (Stop)</option>
+                                        <option value="restart">↻ Khởi động lại luồng (Restart)</option>
+                                        <option value="status">ℹ Kiểm tra trạng thái (Status)</option>
+                                        <option value="configure">⚙ Cấu hình bộ lọc (Configure)</option>
                                     </select>
                                 </div>
-                                <div style={{ marginBottom: '20px' }}>
-                                    <label style={{ color: '#8b8d93', fontSize: '0.9rem', display: 'block', marginBottom: '8px' }}>Payload (JSON)</label>
-                                    <textarea 
-                                        rows="3" 
-                                        value={payloadText}
-                                        onChange={(e) => setPayloadText(e.target.value)}
-                                        style={{ width: '100%', padding: '10px', background: '#1c1e22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#10b981', fontFamily: 'monospace', outline: 'none' }}
-                                    />
-                                </div>
+
+                                {/* GIAO DIỆN THAM SỐ (PARAMS) BIẾN HÌNH */}
+                                {selectedCmd !== 'status' && (
+                                    <div style={{ marginBottom: '20px', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px', border: '1px dashed rgba(255,255,255,0.05)' }}>
+                                        <label style={{ color: '#8b8d93', fontSize: '0.85rem', display: 'block', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                            Tham số đính kèm
+                                        </label>
+                                        
+                                        {selectedCmd === 'start' && (
+                                            <select value={cmdParams.mode} onChange={(e) => setCmdParams({ mode: e.target.value })} style={{ width: '100%', padding: '10px', background: '#1c1e22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#10b981', outline: 'none' }}>
+                                                <option value="realtime">Thời gian thực (Realtime)</option>
+                                                <option value="sdr_snapshot">Chụp dữ liệu thô (SDR Snapshot)</option>
+                                            </select>
+                                        )}
+
+                                        {selectedCmd === 'stop' && (
+                                            <select value={cmdParams.reason} onChange={(e) => setCmdParams({ reason: e.target.value })} style={{ width: '100%', padding: '10px', background: '#1c1e22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#10b981', outline: 'none' }}>
+                                                <option value="user_requested">Người dùng yêu cầu tạm dừng</option>
+                                                <option value="maintenance">Bảo trì hệ thống định kỳ</option>
+                                                <option value="error">Phát hiện lỗi phần cứng</option>
+                                            </select>
+                                        )}
+
+                                        {selectedCmd === 'restart' && (
+                                            <div>
+                                                <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>Phạm vi (Scope)</span>
+                                                <input type="text" value={cmdParams.scope} disabled style={{ width: '100%', padding: '10px', background: '#1c1e22', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', color: '#6b7280', marginTop: '5px' }} />
+                                            </div>
+                                        )}
+
+                                        {selectedCmd === 'configure' && (
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                                <div>
+                                                    <label style={{ fontSize: '0.8rem', color: '#8b8d93', display: 'block', marginBottom: '5px' }}>Reference SVID</label>
+                                                    <input type="number" value={cmdParams.reference_svid} onChange={(e) => setCmdParams({ ...cmdParams, reference_svid: Number(e.target.value) })} style={{ width: '100%', padding: '10px', background: '#1c1e22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#10b981', outline: 'none' }} />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: '0.8rem', color: '#8b8d93', display: 'block', marginBottom: '5px' }}>Min Sat Count</label>
+                                                    <input type="number" value={cmdParams.min_sat_count} onChange={(e) => setCmdParams({ ...cmdParams, min_sat_count: Number(e.target.value) })} style={{ width: '100%', padding: '10px', background: '#1c1e22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#10b981', outline: 'none' }} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* NÚT BẮN LỆNH */}
                                 <button 
-                                    onClick={() => {
-                                        try { 
-                                            // Lấy trực tiếp từ State thay vì dùng getElementById
-                                            const payloadData = JSON.parse(payloadText); 
-                                            sendCommand(selectedCmd, payloadData); 
-                                        } 
-                                        catch (e) { toast.error("Payload JSON không hợp lệ!"); }
-                                    }}
+                                    onClick={() => sendCommand(selectedCmd, cmdParams)}
                                     disabled={isSendingCmd}
-                                    style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', cursor: isSendingCmd ? 'not-allowed' : 'pointer', fontWeight: 'bold', width: '100%' }}
+                                    style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', cursor: isSendingCmd ? 'not-allowed' : 'pointer', fontWeight: 'bold', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'background 0.2s' }}
+                                    onMouseOver={(e) => !isSendingCmd && (e.currentTarget.style.background = '#2563eb')}
+                                    onMouseOut={(e) => !isSendingCmd && (e.currentTarget.style.background = '#3b82f6')}
                                 >
-                                    Bắn Lệnh Cấu Hình
+                                    {isSendingCmd ? <Loader2 size={18} className="spin" /> : <Terminal size={18} />}
+                                    {isSendingCmd ? 'Đang gửi...' : `Gửi cấu hình ${selectedCmd.toUpperCase()}`}
                                 </button>
                             </div>
                         </div>
@@ -349,7 +372,7 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                 .spin { animation: spin 1s linear infinite; }
                 @keyframes spin { 100% { transform: rotate(360deg); } }
             `}</style>
-        </Layout>
+            </>
     );
 };
 

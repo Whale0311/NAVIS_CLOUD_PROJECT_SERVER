@@ -47,7 +47,9 @@ const Login = () => {
         return re.test(email);
     };
 
-    const handleLogin = async () => {
+    const handleLogin = async (e) => {
+        if (e) e.preventDefault(); // Ngăn trình duyệt tải lại trang khi ấn Enter
+        
         if (!formData.email || !formData.password) return toast.warning("Vui lòng nhập đầy đủ thông tin!");
         if (!validateEmail(formData.email)) return toast.error("Định dạng email không hợp lệ!");
         
@@ -68,7 +70,9 @@ const Login = () => {
         } catch (error) { toast.error("Lỗi kết nối Server!"); }
     };
 
-    const handleRegister = async () => {
+    const handleRegister = async (e) => {
+        if (e) e.preventDefault();
+        
         const { email, password, confirmPass, code } = formData;
         if(!email || !password || !confirmPass || !code) return toast.warning("Vui lòng điền đủ thông tin!");
         if(!validateEmail(email)) return toast.error("Định dạng email không hợp lệ!");
@@ -90,7 +94,9 @@ const Login = () => {
         } catch (error) { toast.error("Lỗi kết nối Server!"); }
     };
 
-    const handleForgot = async () => {
+    const handleForgot = async (e) => {
+        if (e) e.preventDefault();
+        
         if(!formData.email) return toast.warning("Vui lòng nhập Email!");
         if(!validateEmail(formData.email)) return toast.error("Định dạng email không hợp lệ!");
         
@@ -108,7 +114,7 @@ const Login = () => {
         } catch (error) { toast.error("Lỗi kết nối Server!"); }
     };
 
-    // Style inline cho wrapper chứa input và icon (bọc input bằng div, div position relative, input padding-right, icon position absolute, v.v.)
+    // Style inline cho wrapper chứa input và icon
     const inputWrapperStyle = {
         position: 'relative',
         display: 'flex',
@@ -122,12 +128,11 @@ const Login = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '5px' // Tăng vùng click cho icon
+        padding: '5px' 
     };
 
     return (
         <>
-            {/* Cấu hình Toastify: theme="dark" để hợp với Navis-Cloud */}
             <ToastContainer position="top-right" autoClose={3000} theme="dark" />
             
             <div className="login-container">
@@ -142,14 +147,14 @@ const Login = () => {
             <div className="auth-card">
                 {/* FORM ĐĂNG NHẬP */}
                 {currentForm === 'login' && (
-                    <div className="animate-form">
+                    <form className="animate-form" onSubmit={handleLogin}>
                         <div className="auth-header">
                             <h2>WELCOME BACK</h2>
                             <p>Sign in to access your GNSS analysis dashboard</p>
                         </div>
                         <div className="input-group">
                             <label>E-mail</label>
-                            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter your email" />
+                            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter your email" required />
                         </div>
                         <div className="input-group">
                             <label>Password</label>
@@ -160,30 +165,31 @@ const Login = () => {
                                     value={formData.password} 
                                     onChange={handleChange} 
                                     placeholder="Enter your password" 
-                                    style={{ width: '100%', paddingRight: '40px' }} // Chừa chỗ cho icon
+                                    style={{ width: '100%', paddingRight: '40px' }}
+                                    required
                                 />
                                 <span style={iconStyle} onClick={() => setShowPassword(!showPassword)}>
                                     {showPassword ? <EyeIcon /> : <EyeOffIcon />}
                                 </span>
                             </div>
                         </div>
-                        <button className="btn-submit" onClick={handleLogin}>LOGIN</button>
+                        <button type="submit" className="btn-submit">LOGIN</button>
                         <div className="auth-switch">
                             <span>Chưa có tài khoản? <span className="auth-link" onClick={() => setCurrentForm('register')}>Đăng ký</span></span>
                         </div>
-                    </div>
+                    </form>
                 )}
 
                 {/* FORM ĐĂNG KÝ */}
                 {currentForm === 'register' && (
-                    <div className="animate-form">
+                    <form className="animate-form" onSubmit={handleRegister}>
                         <div className="auth-header">
                             <h2>CREATE ACCOUNT</h2>
                             <p>Join the Navis-Cloud platform</p>
                         </div>
                         <div className="input-group">
                             <label>E-mail</label>
-                            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter your email" />
+                            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter your email" required />
                         </div>
                         <div className="input-group">
                             <label>Password</label>
@@ -195,6 +201,7 @@ const Login = () => {
                                     onChange={handleChange} 
                                     placeholder="Create a password" 
                                     style={{ width: '100%', paddingRight: '40px' }}
+                                    required
                                 />
                                 <span style={iconStyle} onClick={() => setShowPassword(!showPassword)}>
                                     {showPassword ? <EyeIcon /> : <EyeOffIcon />}
@@ -211,6 +218,7 @@ const Login = () => {
                                     onChange={handleChange} 
                                     placeholder="Confirm your password" 
                                     style={{ width: '100%', paddingRight: '40px' }}
+                                    required
                                 />
                                 <span style={iconStyle} onClick={() => setShowConfirmPass(!showConfirmPass)}>
                                     {showConfirmPass ? <EyeIcon /> : <EyeOffIcon />}
@@ -227,35 +235,36 @@ const Login = () => {
                                     onChange={handleChange} 
                                     placeholder="Nhập mã xác nhận" 
                                     style={{ width: '100%', paddingRight: '40px' }}
+                                    required
                                 />
                                 <span style={iconStyle} onClick={() => setShowCode(!showCode)}>
                                     {showCode ? <EyeIcon /> : <EyeOffIcon />}
                                 </span>
                             </div>
                         </div>
-                        <button className="btn-submit" onClick={handleRegister}>REGISTER</button>
+                        <button type="submit" className="btn-submit">REGISTER</button>
                         <div className="auth-switch">
                             <span>Đã có tài khoản? <span className="auth-link" onClick={() => setCurrentForm('login')}>Đăng nhập</span></span>
                         </div>
-                    </div>
+                    </form>
                 )}
 
                 {/* FORM QUÊN MẬT KHẨU */}
                 {currentForm === 'forgot' && (
-                    <div className="animate-form">
+                    <form className="animate-form" onSubmit={handleForgot}>
                         <div className="auth-header">
                             <h2>RESET PASSWORD</h2>
                             <p>We will send a recovery link to your email</p>
                         </div>
                         <div className="input-group">
                             <label>E-mail</label>
-                            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter your registered email" />
+                            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter your registered email" required />
                         </div>
-                        <button className="btn-submit" onClick={handleForgot}>SEND RECOVERY LINK</button>
+                        <button type="submit" className="btn-submit">SEND RECOVERY LINK</button>
                         <div className="auth-switch">
                             <span className="auth-link" onClick={() => setCurrentForm('login')}>← Quay lại Đăng nhập</span>
                         </div>
-                    </div>
+                    </form>
                 )}
                 </div>
             </div>

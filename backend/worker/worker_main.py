@@ -187,7 +187,6 @@ class MQTTSubscriber:
             db = SessionLocal()
             health_data = self.parser.extract_health_data(message)
             
-            # Lấy data gốc từ gói tin MQTT (vì parser có thể lọt lưới các trường tùy chỉnh)
             raw_data = message.data if isinstance(message.data, dict) else {}
             event_type = raw_data.get("event_type") or (health_data and health_data.get("event_type"))
             
@@ -195,7 +194,7 @@ class MQTTSubscriber:
             if not device:
                 return
 
-            alarm_saved = False # Cờ đánh dấu có lưu DB hay không
+            alarm_saved = False 
 
             # 1. BẮT CẢNH BÁO BẢO MẬT (TỪ SIMULATOR HOẶC MẠCH GNSS)
             if event_type == "spoofing_detected" or event_type == "alarm":
@@ -208,42 +207,77 @@ class MQTTSubscriber:
                 db.add(alarm)
                 alarm_saved = True
 
-            # 2. BẮT CẢNH BÁO LỖI HỆ THỐNG (DROP / BACKLOG)
+            # 2. BẮT CẢNH BÁO LỖI HỆ THỐNG (DROP / BACKLOG) - ĐÃ CHỐNG SPAM
             if health_data:
+                # --- XỬ LÝ DROPPED FRAMES ---
                 total_dropped = (health_data.get("ingress_dropped", 0) + 
                                  health_data.get("detect_dropped", 0) + 
                                  health_data.get("raw_dropped", 0))
                                  
                 if total_dropped > 0:
-                    alarm = Alarm(
-                        device_id=device.id,
-                        severity="Warning",
-                        event_desc=f"Dropped {total_dropped} frames total",
-                        status="Active"
-                    )
-                    db.add(alarm)
-                    alarm_saved = True
-                
+                    # Kiểm tra xem đã có cảnh báo rớt gói tin nào đang Active chưa
+                    existing_drop_alarm = db.query(Alarm).filter(
+                        Alarm.device_id == device.id,
+                        Alarm.event_desc.like("Dropped % frames total"),
+                        Alarm.status == "Active"
+                    ).first()
+
+                    if not existing_drop_alarm:
+                        alarm = Alarm(
+                            device_id=device.id,
+                            severity="Warning",
+                            event_desc=f"Dropped {total_dropped} frames total",
+                            status="Active"
+                        )
+                        db.add(alarm)
+                        alarm_saved = True
+                    else:
+                        # Nếu số lượng drop tăng lên thì cập nhật lại mô tả
+                        new_desc = f"Dropped {total_dropped} frames total"
+                        if existing_drop_alarm.event_desc != new_desc:
+                            existing_drop_alarm.event_desc = new_desc
+                            alarm_saved = True
+
+                # --- XỬ LÝ BACKLOG ---
                 total_backlog = (health_data.get("ingress_backlog", 0) + 
                                  health_data.get("detect_backlog", 0))
+                
+                # Tìm xem có cảnh báo Backlog nào đang Active không
+                existing_backlog_alarm = db.query(Alarm).filter(
+                    Alarm.device_id == device.id,
+                    Alarm.event_desc.like("High processing backlog%"),
+                    Alarm.status == "Active"
+                ).first()
                                  
                 if total_backlog > 100:
-                    alarm = Alarm(
-                        device_id=device.id,
-                        severity="Warning",
-                        event_desc=f"High processing backlog: {total_backlog} messages",
-                        status="Active"
-                    )
-                    db.add(alarm)
-                    alarm_saved = True
+                    if not existing_backlog_alarm:
+                        # Tạo mới nếu đây là sự cố nghẽn mạng mới
+                        alarm = Alarm(
+                            device_id=device.id,
+                            severity="Warning",
+                            event_desc=f"High processing backlog: {total_backlog} messages",
+                            status="Active"
+                        )
+                        db.add(alarm)
+                        alarm_saved = True
+                    else:
+                        # Chỉ cập nhật con số vào record cũ, KHÔNG tạo record mới
+                        new_desc = f"High processing backlog: {total_backlog} messages"
+                        if existing_backlog_alarm.event_desc != new_desc:
+                            existing_backlog_alarm.event_desc = new_desc
+                            alarm_saved = True
+                else:
+                    # TỰ ĐỘNG PHỤC HỒI: Nếu backlog tụt xuống dưới 100, đóng cảnh báo lại
+                    if existing_backlog_alarm:
+                        existing_backlog_alarm.status = "Resolved"
+                        alarm_saved = True
             
-            # Khóa dữ liệu vào DB nếu có bất kỳ còi báo nào kêu
+            # Khóa dữ liệu vào DB nếu có thay đổi
             if alarm_saved:
                 db.commit()
-                print(f"   🚨 Đã lưu cảnh báo vào Database!")
+                # print(f"   🚨 Đã cập nhật trạng thái Alarm vào Database!")
                 
-                # 3. BẮN WEBHOOK KÍCH HOẠT RADAR FRONTEND (Đã thụt lề vào trong if)
-                # Ta dùng raw_data để đảm bảo không bị lỗi object thời gian (datetime)
+                # 3. BẮN WEBHOOK KÍCH HOẠT RADAR FRONTEND
                 try:
                     requests.post(
                         f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
@@ -253,16 +287,13 @@ class MQTTSubscriber:
                             "data": {
                                 "event_type": str(event_type),
                                 "severity": str(raw_data.get("severity", "Critical")),
-                                "message": str(raw_data.get("message", "Phát hiện sự cố bất thường!"))
+                                "message": str(raw_data.get("message", "Hệ thống có sự thay đổi trạng thái!"))
                             }
                         },
                         timeout=2
                     )
                 except Exception as req_err:
                     print(f"   ⚠️ Không thể bắn Webhook Alarm: {req_err}")
-
-            else:
-                print(f"   ✅ Health data checked (Hệ thống ổn định)")
 
         except Exception as e:
             print(f"   ❌ Lỗi handle_health_data: {e}")

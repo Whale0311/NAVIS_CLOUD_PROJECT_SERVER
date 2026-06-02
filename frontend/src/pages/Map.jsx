@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react';
-import Layout from '../components/Layout';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -288,7 +287,6 @@ const MapPage = () => {
 
     const renderedData = renderSignals();
     return (
-        <Layout>
             <div className="map-page-wrapper">
                 {/* 1. LAYER BẢN ĐỒ */}
             <MapContainer center={[21.005, 105.844]} zoom={15} zoomControl={false} style={{ height: '100%', width: '100%' }} ref={mapRef}>
@@ -390,7 +388,6 @@ const MapPage = () => {
                     </div>
                 </div>
             </div>
-        </Layout>
     );
 };
 

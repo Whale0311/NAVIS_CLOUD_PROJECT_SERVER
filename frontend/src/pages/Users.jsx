@@ -1,7 +1,6 @@
 // src/pages/Users.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Layout from '../components/Layout';
 import { Users as UsersIcon, UserPlus, KeyRound, Trash2, X, ShieldCheck, User } from 'lucide-react';
 // Import thư viện thông báo
 import { ToastContainer, toast } from 'react-toastify';
@@ -131,8 +130,7 @@ const Users = () => {
     };
 
     return (
-        <Layout>
-            <ToastContainer position="top-right" autoClose={3000} theme="dark" />
+            <>
 
             <div className="dashboard-container">
                 {/* Tiêu đề trang */}
@@ -362,7 +360,7 @@ const Users = () => {
                     </div>
                 </div>
             )}
-        </Layout>
+        </>
     );
 };
 

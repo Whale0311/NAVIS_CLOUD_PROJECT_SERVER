@@ -136,54 +136,86 @@ body {
             gap: 8px; /* Khoảng cách giữa các nút rộng ra 1 chút */
         }        
         .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 16px; /* Khoảng cách giữa icon và chữ */
-            padding: 14px 18px; /* Tăng padding trong nút cho nút to và dễ bấm hơn */
-            border-radius: 12px;
-            color: #8b8d93;
-            font-size: 1rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    height: 48px; /* Set chiều cao cố định */
+    margin: 8px 16px;
+    border-radius: 12px; /* Bo góc khối giống mẫu */
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    font-size: 0.95rem;
+    color: #8b8d93;
+}
         .nav-icon {
-            transition: all 0.3s ease;
-        }
+    margin-right: 14px;
+    min-width: 20px;
+}
         .nav-item:hover {
-            color: #ffffff;
-            background-color: rgba(255, 255, 255, 0.05);
-        }        
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #fff;
+}    
         .nav-item.active {
-            background-color: #10b981 !important; 
-            color: #ffffff !important; /* Đổi chữ sang màu trắng cho nổi bật */
-            font-weight: 700;
-            box-shadow: 0px 8px 20px rgba(16, 185, 129, 0.3); 
-        }
+    background-color: rgba(16, 185, 129, 0.15); /* Nền xanh neon mờ (#10b981) */
+    color: #10b981; /* Chữ và icon xanh neon sáng rực */
+}
         .nav-item.active .nav-icon {
             color: #ffffff !important; 
         }
         .sidebar-footer {
-            margin-top: auto;
-        }
+    padding: 16px 0;
+}
         .logout-btn { padding: 20px 25px; color: #a3a3a3; cursor: pointer; border-top: 1px solid rgba(255,255,255,0.05); transition: 0.3s; }
         .logout-btn:hover {
-            color: #ef4444;
-            background-color: rgba(239, 68, 68, 0.1);
-        }
+    background-color: rgba(239, 68, 68, 0.1); /* Màu nền đỏ báo hiệu hành động nguy hiểm */
+    color: #ef4444;
+}
         .logout-btn:hover .nav-icon {
             color: #ef4444;
         }
         /* Vùng nội dung */
         /* Thêm position: relative vào main-content để làm hệ quy chiếu */
-.main-content { 
+/*.main-content { 
     flex-grow: 1; 
     padding: 40px; 
     overflow-y: auto; 
     z-index: 1;
     position: relative; 
+}*/
+html, body, #root {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden; /* Cấm trình duyệt cuộn ở cấp độ cao nhất */
 }
 
+/* ==========================================
+   FIX LỖI TRÀN MAP & TRÀN DASHBOARD
+========================================== */
+.app-container {
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    width: 100%; /* Dùng 100% thay vì 100vw để tránh lỗi tính toán scrollbar */
+    overflow: hidden;
+    background-color: #131517;
+}
+
+.main-content {
+    flex: 1;
+    min-width: 0; /* BÍ QUYẾT: Bắt buộc phần tử con (Chart, Map) phải co lại nếu bị Sidebar ép */
+    height: 100%;
+    overflow-y: auto; /* Chỉ cho phép cuộn dọc */
+    overflow-x: hidden; /* Cấm tuyệt đối cuộn ngang */
+    position: relative;
+}
+.leaflet-container {
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 1; /* Đảm bảo bản đồ không đè lên các popup khác */
+}
 /* Ép Map tràn viền tuyệt đối 100% không góc chết */
 .map-page-wrapper {
     position: absolute;
@@ -216,14 +248,35 @@ body {
         .kpi-unit { font-size: 1.2rem; font-weight: 500; color: #64748b; font-family: 'Segoe UI'; }
 
         /* Khung Biểu đồ */
-        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
-        .chart-card { 
-            background: rgba(20, 20, 20, 0.6); backdrop-filter: blur(10px);
-            padding: 25px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); 
-            height: 380px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
+        .chart-grid {
+    display: grid;
+    /* Dùng minmax(0, 1fr) thay vì 1fr để ép lưới được phép co nhỏ lại */
+    grid-template-columns: repeat(2, minmax(0, 1fr)); 
+    gap: 24px;
+    width: 100%;
+    margin-top: 24px;
+}
+        .chart-card {
+    background-color: #1c1e22; /* Hoặc màu nền hiện tại của bạn */
+    border-radius: 16px;
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    
+    /* BẮT BUỘC: Ép card co lại */
+    min-width: 0; 
+    width: 100%;
+    box-sizing: border-box;
+}
         .chart-title { font-size: 1rem; font-weight: 600; color: #e2e8f0; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;}
-        .chart-container { flex-grow: 1; position: relative; }
+        /* Thẻ bọc trực tiếp thẻ <Bar /> của Chart.js */
+.chart-container {
+    position: relative;
+    height: 320px; /* Chiều cao cố định bạn muốn */
+    width: 100%;
+    
+    /* BẮT BUỘC: Ép Canvas co lại */
+    min-width: 0; 
+}
 /* ========================================= */
 /* CSS DÀNH RIÊNG CHO TRANG MAP (BẢN ĐỒ)     */
 /* ========================================= */
@@ -535,4 +588,113 @@ input[type="password"]::-webkit-credentials-input-type-reveal {
 .tooltip-wrapper:hover .info-icon {
   opacity: 1;
   color: #06b6d4;
+}
+/* --- CSS CỐT LÕI CHO SIDEBAR --- */
+.sidebar {
+    width: 260px;
+    background-color: #0c1017; /* Đen nhám sâu, cực hợp với màu neon */
+    display: flex;
+    flex-direction: column;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0; /* Cấm sidebar bị bóp méo */
+    z-index: 1000;
+    border-right: 1px solid rgba(255, 255, 255, 0.05); /* Đường viền mờ tinh tế */
+}
+
+/* KHI SIDEBAR BỊ THU GỌN */
+.sidebar.collapsed {
+    width: 84px; /* Tăng lên một chút để bọc khối icon vuông vức */
+}
+
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 80px;
+    min-height: 80px;
+    gap: 12px; /* Thêm khoảng cách bắt buộc giữa Logo và Nút */
+}
+
+.sidebar.collapsed .sidebar-header {
+    justify-content: center; /* Đưa nút ra giữa khi thu nhỏ */
+}
+.logo-container {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    opacity: 1;
+    transition: opacity 0.2s ease, width 0.2s ease;
+}
+.logo-container.hidden-logo {
+    opacity: 0;
+    width: 0;
+    pointer-events: none; /* Không cho click vào khi đã ẩn */
+}
+/* Giảm nhẹ Font-size của Logo xuống một chút cho an toàn */
+.logo-container span {
+    font-size: 1.1rem !important; 
+}
+
+.toggle-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #8b8d93;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    flex-shrink: 0; /* Nút không bị bóp méo */
+}
+
+.toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* Căn giữa các Icon khi thanh Sidebar bị thu gọn */
+.sidebar.collapsed .nav-item {
+    margin: 8px auto; /* Tự động căn giữa */
+    width: 48px; /* Biến thành hình vuông (48x48) */
+    padding: 0;
+    justify-content: center; /* Ép icon vào giữa thẻ vuông */
+}
+.sidebar.collapsed .logout-btn {
+    justify-content: center;
+    padding: 12px 0; /* Bỏ padding 2 bên đi để icon nằm chính giữa */
+}
+
+.sidebar.collapsed .nav-icon {
+    margin-right: 0; /* Gỡ margin của icon */
+}
+/* (Cái này sẽ làm biến mất thanh cuộn trắng xấu xí trong ảnh của bạn) */
+.nav-menu-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.nav-menu-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.nav-menu-container::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.1); /* Màu xám mờ tinh tế */
+    border-radius: 10px;
+}
+
+.nav-menu-container::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+.nav-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.menu-divider {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.05);
+    margin: 16px 24px;
 }

@@ -1,103 +1,668 @@
-# Navis Cloud - Frontend
+# 🎨 Navis Cloud - Frontend Dashboard
 
-Ứng dụng web dashboard hiện đại được xây dựng với React và Vite, cung cấp giao diện quản lý thiết bị IoT, theo dõi dữ liệu telemetry, và quản lý hệ thống IoT thông qua MQTT.
+Ứng dụng web dashboard hiệu suất cao được xây dựng với **React 19** và **Vite**, cung cấp giao diện quản lý thiết bị IoT, theo dõi dữ liệu telemetry real-time, quản lý hệ thống, và trực quan hóa dữ liệu nâng cao.
 
-## 📋 Mục Đích
+## 📋 Tổng Quan
 
 Frontend của Navis Cloud cung cấp:
-- **Dashboard**: Bảng điều khiển tổng quan hệ thống
-- **Quản lý Thiết bị**: Theo dõi và quản lý các thiết bị IoT kết nối
-- **Biểu đồ Dữ liệu**: Trực quan hóa dữ liệu telemetry theo thời gian thực
-- **Bản đồ**: Hiển thị vị trí địa lý của các thiết bị
-- **Cảnh báo**: Quản lý và giám sát các sự cố/cảnh báo
-- **Quản lý Người dùng**: Kiểm soát truy cập và quản lý tài khoản
-- **Xác thực**: Hệ thống đăng nhập bảo mật
+- **📊 Dashboard**: Bảng điều khiển tổng quan hệ thống, metrics chính
+- **🚀 Device Management**: Theo dõi, quản lý, control các thiết bị IoT kết nối
+- **📈 Real-time Charts**: Trực quan hóa dữ liệu telemetry với Chart.js & Plotly
+- **🗺️ Interactive Maps**: Hiển thị vị trí địa lý các thiết bị trên bản đồ (Leaflet)
+- **🚨 Alarm Management**: Quản lý, theo dõi, phân loại các cảnh báo/sự cố
+- **👥 User Management**: Kiểm soát truy cập, quản lý tài khoản người dùng
+- **🔐 Authentication**: Hệ thống đăng nhập bảo mật với JWT tokens
+- **📱 Responsive Design**: Tối ưu cho desktop, tablet, mobile
 
-## ✨ Tính Năng
+## ✨ Tính Năng Chính
 
-- ⚡ **Vite**: Công cụ build nhanh với Hot Module Replacement (HMR)
-- ⚛️ **React 18**: Thư viện UI hiện đại
-- 🎨 **CSS Modern**: Hỗ trợ CSS3 và responsive design
-- 📝 **ESLint**: Kiểm tra chất lượng code tự động
-- 🔄 **Real-time Updates**: Kết nối backend qua API REST
+| Tính năng | Mô tả |
+|----------|--------|
+| ⚡ **Vite** | Công cụ build siêu nhanh, HMR (Hot Module Replacement) |
+| ⚛️ **React 19** | Thư viện UI hiện đại với hooks & components |
+| 📊 **Chart.js** | Biểu đồ động, real-time data visualization |
+| 🗺️ **Leaflet** | Bản đồ tương tác, marker, popup |
+| 📈 **Plotly** | Biểu đồ nâng cao (3D, heatmap, v.v) |
+| 🎨 **Modern CSS** | CSS3, Flexbox, Grid, animations |
+| 🎯 **ESLint** | Kiểm tra chất lượng code tự động |
+| 🔗 **React Router** | Client-side routing |
+| 🔔 **Toast Notifications** | React-toastify alerts |
+| 📡 **REST API Integration** | Kết nối backend qua Axios/Fetch |
 
-## 🛠️ Yêu Cầu
+## 🛠️ Tech Stack
 
-- **Node.js**: Phiên bản 18.0.0 trở lên
-- **npm**: Phiên bản 9.0.0 trở lên (hoặc yarn/pnpm)
+```
+React 19          - UI library
+Vite              - Build tool
+React Router 7    - Client routing
+Chart.js 4.5      - Data visualization
+Plotly.js 3.5     - Advanced charts
+Leaflet 1.9       - Map library
+Lucide React 1.8  - Icon library
+React Toastify    - Notifications
+ESLint            - Code quality
+Node.js 18+       - Runtime
+npm 9+            - Package manager
+```
 
-## 📦 Cài Đặt
+## 📦 Yêu Cầu & Cài Đặt
 
-### 1. Cài đặt Dependencies
+### Prerequisites
+- **Node.js**: 18.0.0 trở lên
+- **npm**: 9.0.0 trở lên (hoặc yarn/pnpm)
 
+### 1. Clone Repository
+```bash
+git clone <repository-url>
+cd navis-cloud/frontend
+```
+
+### 2. Cài Đặt Dependencies
 ```bash
 npm install
 ```
 
-### 2. Cấu hình Environment (nếu cần)
+Hoặc với yarn/pnpm:
+```bash
+yarn install
+# hoặc
+pnpm install
+```
 
-Tạo file `.env.local` trong thư mục frontend (nếu cần):
+### 3. Cấu Hình Environment (Tùy Chọn)
+
+Tạo file `.env.local` trong thư mục `frontend/` (nếu cần custom):
 
 ```env
-VITE_API_URL=
+VITE_API_URL=http://localhost:8000
+VITE_API_TIMEOUT=30000
 VITE_APP_NAME=Navis Cloud
+VITE_LOG_LEVEL=debug
 ```
+
+Nếu không có `.env.local`, sẽ dùng mặc định:
+- `VITE_API_URL`: http://localhost:8000
+- `VITE_API_TIMEOUT`: 30000 (ms)
 
 ## 🚀 Chạy Ứng Dụng
 
 ### Development Mode (Phát triển)
-
 ```bash
 npm run dev
 ```
 
-Ứng dụng sẽ chạy tại `http://localhost:5173` với HMR bật.
+Output:
+```
+  VITE v8.0.4  ready in 300 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  press h to show help
+```
+
+Ứng dụng chạy tại: **http://localhost:5173**
+
+HMR (Hot Module Replacement) được bật tự động → thay đổi code tự động cập nhật.
 
 ### Production Build (Xây dựng Production)
-
 ```bash
 npm run build
 ```
 
-Kết quả xây dựng sẽ được lưu trong thư mục `dist/`.
+Output: Tệp được compile và minify trong thư mục `dist/`
+```
+dist/
+├── index.html
+├── assets/
+│   ├── index-XXX.js
+│   └── index-XXX.css
+└── ...
+```
 
-### Preview Production Build
-
+### Preview Production Build (Xem trước)
 ```bash
 npm run preview
 ```
 
-Xem trước bản build production cục bộ.
+Xem bản build production cục bộ: **http://localhost:4173**
 
-### Linting
-
+### Linting & Code Quality
 ```bash
+# Check code quality
 npm run lint
-```
 
-Kiểm tra chất lượng code bằng ESLint.
+# Fix linting errors automatically
+npm run lint -- --fix
+```
 
 ## 📁 Cấu Trúc Dự Án
 
 ```
 frontend/
-├── public/                 # Tài nguyên tĩnh công khai
+├── public/                     # Tài nguyên tĩnh công khai
+│   └── favicon.ico
+│
 ├── src/
-│   ├── assets/            # Hình ảnh, icon, font
-│   ├── components/        # Các component React tái sử dụng
-│   │   ├── Layout.jsx     # Layout chính
-│   │   └── Sidebar.jsx    # Thanh điều hướng
-│   ├── pages/             # Các trang chính của ứng dụng
-│   │   ├── Alarms.jsx     # Quản lý cảnh báo
-│   │   ├── Charts.jsx     # Biểu đồ dữ liệu
-│   │   ├── Dashboard.jsx  # Dashboard chính
-│   │   ├── Devices.jsx    # Quản lý thiết bị
-│   │   ├── Login.jsx      # Đăng nhập
-│   │   ├── Map.jsx        # Bản đồ vị trí thiết bị
-│   │   └── Users.jsx      # Quản lý người dùng
-│   ├── App.jsx            # Component App chính
-│   ├── index.css          # CSS toàn cục
-│   └── main.jsx           # Entry point
+│   ├── assets/                # Hình ảnh, icon, font
+│   │   └── ...
+│   │
+│   ├── components/            # Các component React tái sử dụng
+│   │   ├── Layout.jsx         # Layout chính (header, sidebar)
+│   │   ├── Sidebar.jsx        # Navigation menu
+│   │   ├── Header.jsx         # Top header bar
+│   │   └── ...
+│   │
+│   ├── context/               # React Context API
+│   │   ├── SocketContext.jsx  # WebSocket context
+│   │   ├── AuthContext.jsx    # Authentication context
+│   │   └── ...
+│   │
+│   ├── pages/                 # Page components (routes)
+│   │   ├── Dashboard.jsx      # Trang chủ Dashboard
+│   │   ├── Devices.jsx        # Quản lý Devices
+│   │   ├── DeviceDetail.jsx   # Chi tiết Device
+│   │   ├── Charts.jsx         # Biểu đồ dữ liệu
+│   │   ├── Map.jsx            # Bản đồ vị trí
+│   │   ├── Alarms.jsx         # Quản lý Cảnh báo
+│   │   ├── Users.jsx          # Quản lý Người dùng
+│   │   └── Login.jsx          # Trang Đăng nhập
+│   │
+│   ├── services/              # API services (Axios calls)
+│   │   ├── api.js             # API client config
+│   │   ├── authService.js     # Auth API calls
+│   │   ├── deviceService.js   # Device API calls
+│   │   └── telemetryService.js # Telemetry API calls
+│   │
+│   ├── App.jsx                # Component App chính, routing
+│   ├── index.css              # CSS toàn cục
+│   ├── main.jsx               # Entry point
+│   └── ...
+│
+├── .eslintrc.cjs              # ESLint configuration
+├── vite.config.js             # Vite configuration
+├── package.json               # Dependencies & scripts
+├── package-lock.json          # Lock file
+├── index.html                 # HTML template
+├── README.md                  # This file
+└── .env.local                 # Environment variables (git ignored)
+```
+
+## 🎯 Key Pages
+
+### 📊 Dashboard (`/dashboard`)
+- Overview metrics (device count, alerts, etc.)
+- Latest telemetry from all devices
+- System health status
+- Quick access widgets
+
+### 🚀 Devices (`/devices`)
+- List of all IoT devices
+- Device status indicators
+- Device filtering & search
+- Device actions (edit, delete, detail)
+
+### 📈 Charts (`/charts`)
+- Real-time data visualization
+- Multiple chart types (line, bar, area)
+- Time range selector
+- Export data functionality
+
+### 🗺️ Map (`/map`)
+- Interactive map with device markers
+- Device location pins
+- Click marker for device details
+- Real-time location updates
+
+### 🚨 Alarms (`/alarms`)
+- List of all alerts/alarms
+- Alarm status (active, resolved)
+- Alarm filtering & sorting
+- Alarm detail modal
+
+### 👥 Users (`/users`)
+- User management (admin only)
+- Add/edit/delete users
+- Role assignment
+- User status management
+
+### 🔐 Login (`/login`)
+- User authentication
+- Email/password login
+- JWT token management
+- Remember me option
+
+## 🔄 Component Architecture
+
+### Layout Structure
+```
+App
+├── Login (if not authenticated)
+└── Layout
+    ├── Header
+    ├── Sidebar
+    └── Main Content Area
+        ├── Dashboard
+        ├── Devices
+        ├── Charts
+        ├── Map
+        ├── Alarms
+        └── Users
+```
+
+### State Management
+
+**Authentication** (Context API):
+```javascript
+// contexts/AuthContext.jsx
+const AuthContext = createContext();
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  
+  return (
+    <AuthContext.Provider value={{ user, token }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+```
+
+**WebSocket** (Context API):
+```javascript
+// contexts/SocketContext.jsx
+const SocketContext = createContext();
+
+export const SocketProvider = ({ children }) => {
+  const [data, setData] = useState([]);
+  const socketRef = useRef(null);
+  
+  // WebSocket connection logic
+  
+  return (
+    <SocketContext.Provider value={{ data }}>
+      {children}
+    </SocketContext.Provider>
+  );
+};
+```
+
+## 🔌 API Integration
+
+### API Service Setup
+```javascript
+// services/api.js
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+const apiClient = axios.create({
+  baseURL: API_URL,
+  timeout: import.meta.env.VITE_API_TIMEOUT || 30000,
+});
+
+// Interceptor for JWT token
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export default apiClient;
+```
+
+### Using API Services
+```javascript
+// services/deviceService.js
+import api from './api';
+
+export const getDevices = async () => {
+  const response = await api.get('/api/devices');
+  return response.data;
+};
+
+export const createDevice = async (deviceData) => {
+  const response = await api.post('/api/devices', deviceData);
+  return response.data;
+};
+```
+
+### Using in Components
+```javascript
+// pages/Devices.jsx
+import { useEffect, useState } from 'react';
+import { getDevices } from '../services/deviceService';
+
+export default function Devices() {
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const data = await getDevices();
+        setDevices(data);
+      } catch (error) {
+        console.error('Error fetching devices:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDevices();
+  }, []);
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <div className="devices-container">
+      {devices.map(device => (
+        <div key={device.id} className="device-card">
+          <h3>{device.name}</h3>
+          <p>{device.location}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## 📊 Data Visualization
+
+### Chart.js Example
+```javascript
+// components/TelemetryChart.jsx
+import { Line } from 'react-chartjs-2';
+
+export default function TelemetryChart({ data }) {
+  const chartData = {
+    labels: data.map(d => d.timestamp),
+    datasets: [
+      {
+        label: 'Signal Strength',
+        data: data.map(d => d.signal),
+        borderColor: 'rgb(75, 192, 192)',
+        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+      }
+    ]
+  };
+
+  return <Line data={chartData} />;
+}
+```
+
+### Map Example
+```javascript
+// components/DeviceMap.jsx
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+
+export default function DeviceMap({ devices }) {
+  return (
+    <MapContainer center={[21.0285, 105.8542]} zoom={13}>
+      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      {devices.map(device => (
+        <Marker key={device.id} position={[device.latitude, device.longitude]}>
+          <Popup>{device.name}</Popup>
+        </Marker>
+      ))}
+    </MapContainer>
+  );
+}
+```
+
+## 🧪 Development & Testing
+
+### Hot Module Replacement (HMR)
+Vite tự động reload component khi thay đổi code:
+```javascript
+// App.jsx - No manual refresh needed!
+if (import.meta.hot) {
+  import.meta.hot.accept();
+}
+```
+
+### Browser DevTools
+```bash
+# React DevTools
+# Install: https://react-devtools-tutorial.vercel.app/
+
+# Redux DevTools (if using Redux)
+# Install: https://github.com/reduxjs/redux-devtools
+```
+
+### Testing with Swagger UI
+1. Mở http://localhost:8000/docs
+2. Test API endpoints
+3. Copy cURL examples
+4. Verify response in DevTools Network tab
+
+### Manual Testing Checklist
+- [ ] Login works
+- [ ] Can view devices list
+- [ ] Device detail loads
+- [ ] Charts display data
+- [ ] Map shows markers
+- [ ] Alarms appear correctly
+- [ ] User management works
+- [ ] Responsive on mobile
+- [ ] No console errors
+
+## 🎨 Styling
+
+### CSS Organization
+```css
+/* index.css - Global styles */
+:root {
+  --primary: #3b82f6;
+  --secondary: #10b981;
+  --danger: #ef4444;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto;
+  color: var(--primary);
+}
+
+/* Component-scoped CSS */
+.device-card {
+  padding: 1rem;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+```
+
+### Responsive Design
+```css
+/* Mobile first approach */
+.container {
+  padding: 1rem;
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding: 2rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+```
+
+## 🚨 Common Issues
+
+### 1. Cannot Connect to Backend
+```
+Error: Failed to fetch http://localhost:8000/...
+Solution:
+- Check backend is running: http://localhost:8000/docs
+- Check VITE_API_URL in .env.local
+- Check CORS is enabled in backend
+```
+
+### 2. VITE Not Found
+```bash
+npm install -g vite
+# or
+npx vite
+```
+
+### 3. Components Not Updating
+```javascript
+// Check you're using hooks correctly
+const [value, setValue] = useState(initial);
+
+useEffect(() => {
+  // Dependency array is important!
+}, [dependencies]);
+```
+
+### 4. Chart Not Displaying
+```javascript
+// Make sure you're using react-chartjs-2 correctly
+import { Line } from 'react-chartjs-2';
+import Chart from 'chart.js/auto';  // Important!
+```
+
+### 5. Map Not Loading
+```javascript
+// Check Leaflet CSS is imported
+import 'leaflet/dist/leaflet.css';
+
+// Check L.Icon.Default paths
+delete L.Icon.Default.prototype._getIconUrl;
+```
+
+## 📚 Best Practices
+
+### Component Organization
+```javascript
+// ✅ Good
+const Dashboard = () => {
+  const [devices, setDevices] = useState([]);
+  
+  useEffect(() => {
+    fetchDevices();
+  }, []);
+
+  return (
+    <div className="dashboard">
+      {/* content */}
+    </div>
+  );
+};
+
+// ❌ Avoid
+const Dashboard = (props) => {
+  // Too many responsibilities
+  // Complex logic mixed with UI
+};
+```
+
+### Performance
+```javascript
+// Use useMemo for expensive calculations
+const expensiveValue = useMemo(() => {
+  return complexCalculation(data);
+}, [data]);
+
+// Use useCallback for stable function references
+const handleClick = useCallback(() => {
+  doSomething();
+}, []);
+
+// Lazy load routes
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+```
+
+### Error Handling
+```javascript
+try {
+  const data = await fetchData();
+  setData(data);
+} catch (error) {
+  toast.error('Failed to fetch data');
+  console.error('Fetch error:', error);
+}
+```
+
+## 🔐 Security
+
+- ✅ Store tokens in localStorage (consider httpOnly cookies)
+- ✅ Validate all user inputs
+- ✅ Use HTTPS in production
+- ✅ Sanitize HTML content
+- ✅ Implement CSRF protection
+- ✅ Regular security updates
+
+## 📞 Troubleshooting
+
+### Port 5173 Already in Use
+```bash
+# Windows
+netstat -ano | findstr :5173
+taskkill /PID <PID> /F
+
+# Linux/Mac
+lsof -i :5173
+kill -9 <PID>
+
+# Or use different port
+npm run dev -- --port 3000
+```
+
+### Clear Cache
+```bash
+# Remove node_modules
+rm -rf node_modules package-lock.json
+npm install
+
+# Clear browser cache
+# Dev Tools → Application → Clear Storage
+```
+
+### npm Install Issues
+```bash
+npm cache clean --force
+npm install
+```
+
+## 📚 Additional Resources
+
+- [React Documentation](https://react.dev/)
+- [Vite Guide](https://vitejs.dev/)
+- [Chart.js Docs](https://www.chartjs.org/)
+- [Leaflet Guide](https://leafletjs.com/)
+- [React Router](https://reactrouter.com/)
+- [Lucide Icons](https://lucide.dev/)
+- [React Toastify](https://fkhadra.github.io/react-toastify/introduction)
+
+## 🤝 Contributing
+
+1. Create feature branch: `git checkout -b feature/my-feature`
+2. Commit changes: `git commit -am 'Add feature'`
+3. Push to branch: `git push origin feature/my-feature`
+4. Submit Pull Request
+
+## 📝 Code Style
+
+- Follow ESLint rules
+- Use functional components with hooks
+- Write meaningful variable names
+- Add JSDoc comments for complex functions
+- Keep components focused and reusable
+
+---
+
+**For backend details**: See [Backend README](../backend/README.md)
+**For system architecture**: See [main README](../README.md)
+**For MQTT setup**: See [MQTT_SETUP.md](../MQTT_SETUP.md)
 ├── .eslintrc.cjs          # Cấu hình ESLint
 ├── vite.config.js         # Cấu hình Vite
 ├── package.json           # Dependencies và scripts

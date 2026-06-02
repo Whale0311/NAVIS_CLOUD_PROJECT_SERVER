@@ -1,6 +1,5 @@
 // src/pages/Dashboard.jsx
 import React, { useEffect, useState, useRef } from 'react';
-import Layout from '../components/Layout';
 import {
     Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend
 } from 'chart.js';
@@ -123,7 +122,6 @@ const Dashboard = () => {
         };
 
         // 3. LẮNG NGHE SỰ KIỆN TỪ SOCKET CONTEXT TOÀN CỤC
-        // 3. LẮNG NGHE SỰ KIỆN TỪ SOCKET CONTEXT TOÀN CỤC
         // ===============================================
         // DASHBOARD.JSX: LẮNG NGHE SỰ KIỆN TỪ SOCKET
         // ===============================================
@@ -225,7 +223,6 @@ const Dashboard = () => {
     };
 
     return (
-        <Layout>
             <div className="dashboard-container">
                 <div className="header-section">
                     <h1 className="header-title">Overview</h1>
@@ -289,7 +286,6 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
-        </Layout>
     );
 };
 

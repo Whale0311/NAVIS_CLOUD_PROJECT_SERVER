@@ -1,7 +1,6 @@
 // src/pages/Devices.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Layout from '../components/Layout';
 import { HardDrive, LineChart, Trash2, X, Plus, Search, Settings, MoreVertical } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -114,8 +113,7 @@ const handleAddSubmit = async (e) => {
     );
 
     return (
-        <Layout>
-            <ToastContainer position="top-right" autoClose={3000} theme="dark" />
+            <>
             
             <div className="dashboard-container">
                 {/* Tiêu đề trang */}
@@ -355,7 +353,7 @@ const handleAddSubmit = async (e) => {
                     </div>
                 </div>
             )}
-        </Layout>
+        </>
     );
 };
 

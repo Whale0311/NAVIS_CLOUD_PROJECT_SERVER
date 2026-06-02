@@ -1,7 +1,6 @@
 // src/pages/Alarms.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Layout from '../components/Layout';
 import { BellRing, AlertOctagon, AlertTriangle, CheckCircle, ShieldAlert, MoreVertical, Trash2, Check } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -135,8 +134,7 @@ const Alarms = () => {
         return { background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' };
     };
     return (
-        <Layout>
-            <ToastContainer position="top-right" autoClose={3000} theme="dark" />
+        
             
             <div className="dashboard-container">
                 {/* Tiêu đề trang */}
@@ -277,7 +275,6 @@ const Alarms = () => {
                     </div>
                 </div>
             </div>
-        </Layout>
     );
 };
 

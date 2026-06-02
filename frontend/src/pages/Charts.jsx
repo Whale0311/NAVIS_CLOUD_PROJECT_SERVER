@@ -1,6 +1,5 @@
 // src/pages/Charts.jsx
 import React, { useEffect, useState, useRef } from 'react';
-import Layout from '../components/Layout';
 import {
     Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler, RadialLinearScale, ArcElement
 } from 'chart.js';
@@ -215,7 +214,6 @@ const Charts = () => {
     let yLabels = chartState.historyBuffer.map(item => item.time);
 
     return (
-        <Layout>
             <div className="dashboard-container">
                 <div className="header-section">
                     <h1 className="header-title">Data Analytics</h1>
@@ -281,7 +279,6 @@ const Charts = () => {
                     </div>
                 </div>
             </div>
-        </Layout>
     );
 };
 

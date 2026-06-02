@@ -7,45 +7,44 @@ Nền tảng quản lý dữ liệu IoT toàn diện được thiết kế để
 **Navis Cloud** là một stack công nghệ đầy đủ cho IoT applications bao gồm:
 - 🚀 **Backend**: FastAPI server với PostgreSQL TimescaleDB
 - 🎨 **Frontend**: React dashboard với real-time visualization
-- 🔄 **Real-time Messaging**: MQTT + Kafka integration
-- 📊 **Data Processing**: Worker services với parsing engines
+- 🔄 **Real-time Messaging**: MQTT integration + Kafka/Zookeeper
+- 📊 **Data Processing**: Worker services với GNSS parsing engines
 - 🐳 **Containerization**: Docker & Docker Compose
 
 ### Công Dụng Chính
 - Theo dõi thiết bị GPS/GNSS theo thời gian thực
 - Quản lý nhiều thiết bị IoT từ một nền tảng
-- Hiển thị dữ liệu telemetry trên dashboard interactiveinteractive
-- Lưu trữ lịch sử dữ liệu dài hạn
+- Hiển thị dữ liệu telemetry trên dashboard interactive
+- Lưu trữ lịch sử dữ liệu dài hạn (30 ngày tự động cleanup)
 - Phát hiện cảnh báo tự động
-- Quản lý người dùng và quyền truy cập
+- Quản lý người dùng và quyền truy cập (JWT-based)
 
 ## 🏗️ Kiến Trúc Hệ Thống
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        Frontend (React)                      │
-│              Dashboard | Charts | Maps | Devices            │
+│                      Frontend (React 19)                     │
+│    Dashboard | Charts | Maps | Devices | Alarms | Users     │
 └─────────────────────────────────────────────────────────────┘
-                              │
-                    (HTTP REST API)
+                         (WebSocket + REST API)
                               │
 ┌─────────────────────────────────────────────────────────────┐
-│                    Backend (FastAPI)                         │
-│  Auth | Device Management | Telemetry API | CORS            │
+│                  Backend (FastAPI + FastAPI)                │
+│  Auth | Device Management | Telemetry API | WebSocket       │
 └─────────────────────────────────────────────────────────────┘
-              ┌──────────────┬──────────────┐
-              │              │              │
-         ┌────▼─────┐  ┌──────▼───────┐  ┌─▼──────────┐
-         │ PostgreSQL│  │ MQTT Broker  │  │   Kafka    │
-         │ TimescaleDB   │ (Messages)   │  │ (Streaming)│
-         └────┬─────┘  └──────┬───────┘  └─┬──────────┘
-              │              │              │
-         ┌────▼──────────────▼──────────────▼────┐
-         │     Worker Services (Python)          │
-         │  GNSS Parser | Data Writer | Consumers│
-         └──────────────┬───────────────────────┘
-                        │
-              (Hardware Simulator / Real Devices)
+       ┌──────────────────┬─────────────────┐
+       │                  │                 │
+   ┌───▼─────┐    ┌───────▼────────┐  ┌────▼──────────┐
+   │PostgreSQL │   │  MQTT Broker   │  │ Kafka+Zookeeper
+   │TimescaleDB    │  (Mosquitto)   │  │  (Streaming)  │
+   └───┬─────┘    └────────┬───────┘  └────┬──────────┘
+       │                   │               │
+   ┌───▼───────────────────▼───────────────▼────┐
+   │     Worker Services (Python)               │
+   │  GNSS Parser | DB Writer | Data Processors│
+   └───────────┬────────────────────────────────┘
+               │
+    (Hardware Simulator / Real GNSS Devices)
 ```
 
 ## 📦 Cấu Trúc Thư Mục
