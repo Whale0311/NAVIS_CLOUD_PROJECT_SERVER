@@ -132,7 +132,6 @@ def get_latest_telemetry(
         .order_by(Telemetry.timestamp.desc())\
         .first()
 
-    # SỬA LỖI Ở ĐÂY: Trả về None (null) thay vì ném HTTPException 404
     if not latest:
         return None
 
