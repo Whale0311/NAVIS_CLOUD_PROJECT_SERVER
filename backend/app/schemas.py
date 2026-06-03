@@ -40,12 +40,14 @@ class ForgotPassword(BaseModel):
     email: EmailStr
 
 # Schema trả về thông tin User cho ReactJS
+# Schema trả về thông tin User cho ReactJS
 class UserResponse(BaseModel):
     id: int
     email: EmailStr
     role: str
     tenant_id: Optional[int] = None
     role_in_tenant: str
+    tenant_name: Optional[str] = None 
     created_at: datetime
 
     class Config:

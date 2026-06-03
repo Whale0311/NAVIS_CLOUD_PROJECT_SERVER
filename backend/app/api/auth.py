@@ -127,9 +127,8 @@ def require_tenant_admin(current_user: User = Depends(get_current_user)):
 # ==========================================
 # 4. API QUẢN LÝ NHÂN VIÊN THEO CÔNG TY
 # ==========================================
-@router.get("/api/users")
+@router.get("/api/users", response_model=List[UserResponse])
 def get_users(admin: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
-    # Dùng outerjoin để lấy luôn tên Công ty từ bảng Tenant (Chống lỗi undefined)
     if admin.role == "admin": 
         results = db.query(User, Tenant).outerjoin(Tenant, User.tenant_id == Tenant.id).all()
     else:
@@ -137,14 +136,18 @@ def get_users(admin: User = Depends(require_tenant_admin), db: Session = Depends
     
     final_list = []
     for u, t in results:
-        final_list.append({
+        # Chuyển đổi thành Dictionary để Pydantic render không bị rớt trường tenant_name
+        user_dict = {
             "id": u.id,
             "email": u.email,
             "role": u.role,
             "tenant_id": u.tenant_id,
             "role_in_tenant": u.role_in_tenant,
-            "tenant_name": t.name if t else "Hệ thống (System)"
-        })
+            "created_at": u.created_at,
+            "tenant_name": t.name if t else None
+        }
+        final_list.append(user_dict)
+        
     return final_list
 
 @router.post("/api/users")

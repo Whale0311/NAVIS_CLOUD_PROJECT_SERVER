@@ -135,7 +135,6 @@ const Login = () => {
 
     return (
         <>
-            <ToastContainer position="top-right" autoClose={3000} theme="dark" />
             
             <div className="login-container">
             <div className="hero-section">
