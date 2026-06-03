@@ -5,41 +5,38 @@ import {
     LayoutDashboard, Map as MapIcon, BarChart2, 
     Cpu, Bell, Users, LogOut, Menu, ChevronsLeft 
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext'; // Import Context Phân quyền
 
 const Sidebar = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [isCollapsed, setIsCollapsed] = useState(false);
+    
+    // Lấy thẳng thông tin user và hàm logout từ AuthContext
+    const { user, logout } = useAuth(); 
 
-    const getUserRole = () => {
-        try {
-            const token = localStorage.getItem("navis_token");
-            if (!token) return "user";
-            const base64Url = token.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const payload = JSON.parse(decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
-            return payload.role || "user";
-        } catch (e) { return "user"; }
-    };
+    // BỨC TƯỜNG LỬA HIỂN THỊ TRÊN UI
+    const isSuperAdmin = user?.role === "admin";
+    const isTenantAdmin = user?.role_in_tenant === "tenant_admin";
+    
+    // Chỉ Super Admin và Giám đốc Công ty mới được quản lý nhân sự
+    const canManageUsers = isSuperAdmin || isTenantAdmin;
 
-    const isAdmin = getUserRole() === "admin";
     const handleLogout = () => {
-        localStorage.removeItem("navis_token");
-        navigate('/');
+        logout(); // Gọi hàm logout chuẩn từ Context thay vì tự xóa localStorage
     };
+    
     const getNavItemClass = (path) => location.pathname === path ? "nav-item active" : "nav-item";
 
     return (
         <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
             
             <div className="sidebar-header">
-                {/* Khối Logo: Không dùng {!isCollapsed} nữa, dùng class CSS */}
                 <div className={`logo-container ${isCollapsed ? 'hidden-logo' : ''}`}>
                     <span style={{ fontWeight: '900', color: '#fff', fontSize: '1.25rem', letterSpacing: '1px' }}>NAVIS</span>
                     <span style={{ fontWeight: '700', color: '#10b981', fontSize: '1.25rem' }}>-CLOUD</span>
                 </div>
                 
-                {/* Nút Toggle */}
                 <button 
                     className="toggle-btn" 
                     onClick={() => setIsCollapsed(!isCollapsed)}
@@ -63,9 +60,6 @@ const Sidebar = () => {
                         <BarChart2 size={20} className="nav-icon" />
                         {!isCollapsed && <span>Charts</span>}
                     </li>
-                    
-                    {/* Đã xóa Menu Divider theo yêu cầu */}
-
                     <li className={getNavItemClass('/devices')} onClick={() => navigate('/devices')} title="Devices">
                         <Cpu size={20} className="nav-icon" />
                         {!isCollapsed && <span>Devices</span>}
@@ -75,7 +69,8 @@ const Sidebar = () => {
                         {!isCollapsed && <span>Alarms</span>}
                     </li>
                     
-                    {isAdmin && (
+                    {/* KHÓA PHÂN QUYỀN HIỂN THỊ */}
+                    {canManageUsers && (
                         <li className={getNavItemClass('/users')} onClick={() => navigate('/users')} title="Users Manage">
                             <Users size={20} className="nav-icon" />
                             {!isCollapsed && <span>Users Manage</span>}

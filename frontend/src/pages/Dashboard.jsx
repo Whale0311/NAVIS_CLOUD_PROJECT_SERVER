@@ -5,14 +5,17 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { Cpu, Wifi, Activity, Satellite } from 'lucide-react';
+import { useAuth } from '../context/AuthContext'; // IMPORT ĐỂ LẤY THÔNG TIN USER
 
 // Cập nhật màu sắc ChartJS theo tone Dark Mode mới
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
-ChartJS.defaults.color = '#8b8d93'; // Màu chữ xám nhạt
-ChartJS.defaults.borderColor = 'rgba(255, 255, 255, 0.04)'; // Đường kẻ mờ
+ChartJS.defaults.color = '#8b8d93'; 
+ChartJS.defaults.borderColor = 'rgba(255, 255, 255, 0.04)'; 
 ChartJS.defaults.font.family = "'Inter', sans-serif";
 
 const Dashboard = () => {
+    const { user } = useAuth(); // Lấy thông tin người dùng đang đăng nhập
+
     // State quản lý KPI
     const [kpi, setKpi] = useState({ total: 0, conn: 0, cno: '--', sat: '--' });
     
@@ -31,7 +34,7 @@ const Dashboard = () => {
 
         // 1. HÀM GỌI API LẤY DATA KHỞI TẠO
         const fetchDashboardData = async () => {
-            const token = localStorage.getItem("navis_token");
+            const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
             try {
                 const response = await fetch("/api/devices", {
                     method: "GET",
@@ -54,7 +57,8 @@ const Dashboard = () => {
 
                 const telemetryPromises = dbDevices.map(async (dev) => {
                     try {
-                        const telRes = await fetch(`/api/devices/${dev.device_id}/telemetry?limit=1`, {
+                        // SỬA LỖI API: Cập nhật đường dẫn trỏ về Router Telemetry
+                        const telRes = await fetch(`/api/telemetry/devices/${dev.device_id}?limit=1`, {
                             headers: { "Authorization": `Bearer ${token}` }
                         });
                         
@@ -65,7 +69,6 @@ const Dashboard = () => {
                                 return {
                                     name: dev.device_id,
                                     is_active: isOnline, 
-                                    // ÉP NÓ TÌM ĐÚNG BIẾN CHUẨN MỚI TỪ API
                                     cno: isOnline ? (telData[0].avg_cno_dbhz ?? telData[0].avg_cno ?? 0) : 0, 
                                     sat: isOnline ? (telData[0].sat_count ?? 0) : 0,
                                     last_seen: telData[0].timestamp 
@@ -87,15 +90,19 @@ const Dashboard = () => {
             } catch (error) { console.error("Lỗi kết nối Server:", error); }
         };
 
-        // 2. HÀM TÍNH TOÁN LẠI BIỂU ĐỒ VÀ KPI (ĐÃ FIX CHỈ TÍNH XE ONLINE)
+        // 2. HÀM TÍNH TOÁN LẠI BIỂU ĐỒ VÀ KPI
         const updateDashboard = (dataList) => {
-            if (!dataList || dataList.length === 0) return;
+            if (!dataList || dataList.length === 0) {
+                // Tránh lỗi khi danh sách rỗng (Ví dụ: Tài xế chưa được phân công xe)
+                setKpi({ total: 0, conn: 0, cno: '--', sat: '--' });
+                setChartData({ labels: [], cnoData: [], satData: [] });
+                return;
+            }
 
             let totalCno = 0, totalSat = 0, activeCount = 0, validCnoDevices = 0;
             let labels = [], cnoData = [], satData = [];
 
             dataList.forEach(device => {
-                // CHỈ CỘNG VỆ TINH & CNO NẾU XE ĐANG ONLINE
                 if(device.is_active) {
                     activeCount++;
                     totalSat += device.sat;
@@ -114,7 +121,6 @@ const Dashboard = () => {
                 total: dataList.length,
                 conn: activeCount,
                 cno: validCnoDevices > 0 ? (totalCno / validCnoDevices).toFixed(1) : "--",
-                // CHIA CHO SỐ XE ONLINE THAY VÌ TỔNG SỐ XE
                 sat: activeCount > 0 ? Math.round(totalSat / activeCount) : "--" 
             });
 
@@ -122,13 +128,9 @@ const Dashboard = () => {
         };
 
         // 3. LẮNG NGHE SỰ KIỆN TỪ SOCKET CONTEXT TOÀN CỤC
-        // ===============================================
-        // DASHBOARD.JSX: LẮNG NGHE SỰ KIỆN TỪ SOCKET
-        // ===============================================
         const handleGlobalUpdate = (event) => {
             const msg = event.detail; 
             
-            // CƠ CHẾ BẮT TỌA ĐỘ: Check theo chuẩn mới (có nhánh summary)
             const isPosition = 
                 msg.event_type === "telemetry_update" || 
                 msg.event_type === "position_update" || 
@@ -136,12 +138,10 @@ const Dashboard = () => {
 
             if (isPosition) {
                 devicesRef.current = devicesRef.current.map(d => {
-                    // Chú ý: Ở Dashboard biến ID xe có thể lưu dưới dạng d.name
                     if (d.name === msg.device_id || d.device_id === msg.device_id) {
                         return { 
                             ...d, 
                             is_active: true, 
-                            // Móc dữ liệu từ nhánh summary
                             cno: msg.data.summary?.avg_cno_dbhz || d.cno,
                             sat: msg.data.summary?.sat_count || d.sat,
                             last_seen: new Date().toISOString() 
@@ -150,7 +150,6 @@ const Dashboard = () => {
                     return d;
                 });
                 
-                // Cập nhật lại UI Dashboard
                 updateDashboard([...devicesRef.current]);
             }
         };
@@ -184,7 +183,6 @@ const Dashboard = () => {
             }
         }, 5000);
 
-        // 5. TẮT TAI NGHE KHI CHUYỂN TRANG
         return () => { 
             isMounted = false; 
             window.removeEventListener('device_update', handleGlobalUpdate);
@@ -198,7 +196,7 @@ const Dashboard = () => {
         datasets: [{ 
             label: 'CN₀ (dB-Hz)', 
             data: chartData.cnoData, 
-            backgroundColor: '#10b981', // <--- Sửa ở đây
+            backgroundColor: '#10b981',
             borderRadius: 6,
             barThickness: 24
         }]
@@ -210,7 +208,7 @@ const Dashboard = () => {
             label: 'Số vệ tinh', 
             data: chartData.satData, 
             backgroundColor: '#3b3f46', 
-            hoverBackgroundColor: '#10b981', // <--- Sửa hiệu ứng hover ở đây
+            hoverBackgroundColor: '#10b981',
             borderRadius: 6,
             barThickness: 24
         }]
@@ -224,8 +222,16 @@ const Dashboard = () => {
 
     return (
             <div className="dashboard-container">
-                <div className="header-section">
+                <div className="header-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h1 className="header-title">Overview</h1>
+                    
+                    {/* THÔNG ĐIỆP CHÀO MỪNG DỰA TRÊN QUYỀN */}
+                    <div style={{ color: '#8b8d93', fontSize: '0.9rem' }}>
+                        Xin chào, <span style={{ color: '#fff', fontWeight: 'bold' }}>{user?.email}</span>
+                        <span style={{ marginLeft: '10px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase' }}>
+                            {user?.role === 'admin' ? 'Super Admin' : (user?.role_in_tenant === 'tenant_admin' ? 'Giám Đốc' : 'Tài Xế')}
+                        </span>
+                    </div>
                 </div>
                 
                 {/* THIẾT KẾ THẺ KPI MỚI */}

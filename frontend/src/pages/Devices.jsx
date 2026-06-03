@@ -1,35 +1,51 @@
 // src/pages/Devices.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { HardDrive, LineChart, Trash2, X, Plus, Search, Settings, MoreVertical } from 'lucide-react';
+import { HardDrive, LineChart, Trash2, X, Plus, Search, Settings, MoreVertical, UserPlus } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { useAuth } from '../context/AuthContext'; // IMPORT BỘ XỬ LÝ QUYỀN
 
 const API_URL = "/api/devices";
 
 const Devices = () => {
     const navigate = useNavigate();
+    const { user } = useAuth(); // Lấy thông tin user hiện tại
+    
+    // Quyền hạn: Chỉ Super Admin và Giám đốc mới được thêm/sửa/xóa/giao xe
+    const canManageDevices = user?.role === 'admin' || user?.role_in_tenant === 'tenant_admin';
+
     const [devices, setDevices] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [openMenuId, setOpenMenuId] = useState(null);
     
     // State cho Form thêm mới
     const [newDevice, setNewDevice] = useState({
         device_id: '',
-        device_type: 'UBX'
+        device_type: 'UBX',
+        site_id: ''
     });
-    const [openMenuId, setOpenMenuId] = useState(null);
+
+    // ==========================================
+    // STATE CHO TÍNH NĂNG GIAO XE (ASSIGN)
+    // ==========================================
+    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [assigningDevice, setAssigningDevice] = useState(null);
+    const [usersList, setUsersList] = useState([]);
+    const [selectedUserId, setSelectedUserId] = useState('');
 
     useEffect(() => {
-        const handleClickOutside = () => {
-            setOpenMenuId(null);
-        };
+        const handleClickOutside = () => setOpenMenuId(null);
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
-    // Fetch dữ liệu khi load trang
+
+    // ==========================================
+    // API CALLS
+    // ==========================================
     const loadDevices = async () => {
-        const token = localStorage.getItem("navis_token");
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         try {
             const res = await fetch(API_URL, {
                 headers: { "Authorization": `Bearer ${token}` }
@@ -46,50 +62,64 @@ const Devices = () => {
         }
     };
 
+    // Lấy danh sách nhân viên để hiện trong Dropdown Giao Xe
+    const loadUsers = async () => {
+        if (!canManageDevices) return;
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
+        try {
+            const res = await fetch("/api/users", {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setUsersList(data);
+            }
+        } catch (error) { console.error("Không thể tải danh sách user"); }
+    };
+
     useEffect(() => {
         loadDevices();
-    }, []);
+        if (canManageDevices) loadUsers();
+    }, [canManageDevices]);
 
-    // Xử lý thêm thiết bị mới
-const handleAddSubmit = async (e) => {
-    e.preventDefault();
-    const token = localStorage.getItem("navis_token");
-    try {
-        const res = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}` 
-            },
-            body: JSON.stringify({
-                device_id: newDevice.device_id,
-                name: newDevice.device_id, // ID làm Name
-                device_type: newDevice.device_type,
-                site_id: newDevice.site_id, // <--- THÊM DÒNG NÀY ĐỂ GỬI SITE_ID LÊN SERVER
-                is_active: true
-            })
-        });
-        
-        const data = await res.json();
-        if (res.ok) {
-            setIsModalOpen(false);
-            // CẬP NHẬT: Reset thêm cả trường site_id về rỗng
-            setNewDevice({ device_id: '', device_type: 'UBX', site_id: '' }); 
-            toast.success("Đã thêm thiết bị mới thành công!");
-            loadDevices(); // Refresh list
-        } else {
-            toast.error("Lỗi: " + (data.detail || "Không thể tạo thiết bị"));
-        }
-    } catch (error) {
-        toast.error("Lỗi kết nối Server");
-    }
-};
+    // ==========================================
+    // HANDLERS
+    // ==========================================
+    const handleAddSubmit = async (e) => {
+        e.preventDefault();
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify({
+                    device_id: newDevice.device_id,
+                    name: newDevice.device_id, 
+                    device_type: newDevice.device_type,
+                    site_id: newDevice.site_id, 
+                    is_active: true
+                })
+            });
+            
+            const data = await res.json();
+            if (res.ok) {
+                setIsModalOpen(false);
+                setNewDevice({ device_id: '', device_type: 'UBX', site_id: '' }); 
+                toast.success("Đã thêm thiết bị mới thành công!");
+                loadDevices(); 
+            } else {
+                toast.error("Lỗi: " + (data.detail || "Không thể tạo thiết bị"));
+            }
+        } catch (error) { toast.error("Lỗi kết nối Server"); }
+    };
 
-    // Xử lý xóa thiết bị
     const handleDelete = async (id) => {
         if (!window.confirm("CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn thiết bị này khỏi hệ thống?")) return;
         
-        const token = localStorage.getItem("navis_token");
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         try {
             const res = await fetch(`${API_URL}/${id}`, {
                 method: 'DELETE',
@@ -98,33 +128,63 @@ const handleAddSubmit = async (e) => {
             
             if (res.ok) {
                 toast.success("Đã xóa thiết bị thành công!");
-                loadDevices(); // Refresh list
+                loadDevices(); 
             } else {
-                toast.error("Lỗi khi xóa thiết bị");
+                const data = await res.json();
+                toast.error("Lỗi: " + (data.detail || "Không thể xóa"));
             }
-        } catch (error) {
-            toast.error("Lỗi kết nối Server");
-        }
+        } catch (error) { toast.error("Lỗi kết nối Server"); }
     };
 
-    // Lọc dữ liệu theo thanh tìm kiếm
+    // Hàm Xử Lý Phân Công Xe
+    const handleAssignSubmit = async (e) => {
+        e.preventDefault();
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
+        try {
+            const payload = {
+                user_id: selectedUserId ? parseInt(selectedUserId) : null // Trả về null nếu thu hồi
+            };
+
+            const res = await fetch(`${API_URL}/${assigningDevice.id}/assign`, {
+                method: 'PUT',
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (res.ok) {
+                setIsAssignModalOpen(false);
+                toast.success("Cập nhật phân công thiết bị thành công!");
+                loadDevices(); 
+            } else {
+                const data = await res.json();
+                toast.error("Lỗi: " + (data.detail || "Không thể giao xe"));
+            }
+        } catch (error) { toast.error("Lỗi kết nối Server"); }
+    };
+
     const filteredDevices = devices.filter(dev => 
         dev.device_id && dev.device_id.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // ==========================================
+    // INLINE STYLES TÁI SỬ DỤNG
+    // ==========================================
+    const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center' };
+    const modalBoxStyle = { background: '#1c1e22', padding: '32px', borderRadius: '16px', width: '420px', border: '1px solid rgba(16, 185, 129, 0.3)', position: 'relative', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' };
+    const inputStyle = { width: '100%', padding: '14px', background: '#131517', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', color: 'white', outline: 'none', transition: 'border-color 0.3s' };
+
     return (
             <>
-            
             <div className="dashboard-container">
-                {/* Tiêu đề trang */}
                 <div className="header-section">
                     <h1 className="header-title">Device Management</h1>
                 </div>
 
-                {/* Bảng Card chứa dữ liệu */}
                 <div style={{ backgroundColor: '#1c1e22', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)', padding: '30px' }}>
                     
-                    {/* Header của Bảng: Tiêu đề, Search, Nút Add */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.1rem', fontWeight: '600', color: '#ffffff' }}>
                             Danh Sách Thiết Bị 
@@ -134,7 +194,6 @@ const handleAddSubmit = async (e) => {
                         </div>
 
                         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                            {/* Thanh tìm kiếm */}
                             <div style={{ position: 'relative' }}>
                                 <Search size={18} color="#8b8d93" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
                                 <input 
@@ -142,32 +201,32 @@ const handleAddSubmit = async (e) => {
                                     placeholder="Tìm theo Device ID..." 
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    style={{ background: '#131517', border: '1px solid rgba(255,255,255,0.05)', color: '#fff', padding: '10px 15px 10px 40px', borderRadius: '8px', width: '280px', outline: 'none', transition: 'all 0.3s' }}
-                                    onFocus={(e) => e.target.style.borderColor = '#10b981'}
-                                    onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.05)'}
+                                    style={{ ...inputStyle, width: '280px', paddingLeft: '40px' }}
                                 />
                             </div>
 
-                            {/* Nút Thêm Thiết Bị */}
-                            <button 
-                                onClick={() => setIsModalOpen(true)}
-                                style={{ background: '#10b981', color: '#131517', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}
-                                onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                                onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                            >
-                                <Plus size={20} /> Thêm Thiết Bị
-                            </button>
+                            {/* CHỈ QUẢN LÝ MỚI THẤY NÚT THÊM */}
+                            {canManageDevices && (
+                                <button 
+                                    onClick={() => setIsModalOpen(true)}
+                                    style={{ background: '#10b981', color: '#131517', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}
+                                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                                >
+                                    <Plus size={20} /> Thêm Thiết Bị
+                                </button>
+                            )}
                         </div>
                     </div>
-{/* Bảng Dữ Liệu */}
-<div style={{ overflow: 'visible', paddingBottom: '80px' }}>
-    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+
+                    <div style={{ overflow: 'visible', paddingBottom: '80px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>
                                 <tr>
                                     <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Device ID</th>
                                     <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Loại (Type)</th>
                                     <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Kết nối lần cuối</th>
-                                    <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Chủ sở hữu</th>
+                                    <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Tổ chức</th>
                                     <th style={{ color: '#8b8d93', fontSize: '0.85rem', textTransform: 'uppercase', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>Hành động</th>
                                 </tr>
                             </thead>
@@ -190,7 +249,7 @@ const handleAddSubmit = async (e) => {
                                                 </div>
                                             </td>
                                             <td style={{ padding: '18px 10px' }}>
-                                                <span style={{ background: '#131517', border: '1px solid rgba(255,255,255,0.1)', color: '#a3a3a3', padding: '4px 10px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '600', letterSpacing: '0.5px' }}>
+                                                <span style={{ background: '#131517', border: '1px solid rgba(255,255,255,0.1)', color: '#a3a3a3', padding: '4px 10px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '600' }}>
                                                     {dev.device_type || 'UBX'}
                                                 </span>
                                             </td>
@@ -203,7 +262,8 @@ const handleAddSubmit = async (e) => {
                                                 })()}
                                             </td>
                                             <td style={{ padding: '18px 10px', color: '#e2e8f0', fontSize: '0.95rem' }}>
-                                                {dev.owner_email || 'N/A'}
+                                                {/* Hiển thị tên Tenant thay vì owner_email */}
+                                                {dev.tenant_name || 'N/A'}
                                             </td>
                                             <td style={{ padding: '18px 10px', textAlign: 'center', position: 'relative' }}>
                                                 <button 
@@ -217,28 +277,44 @@ const handleAddSubmit = async (e) => {
                                                 </button>
 
                                                 {openMenuId === dev.id && (
-                                                    <div style={{ position: 'absolute', right: '30px', top: '15px', background: '#2a2d32', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '5px', width: '150px', zIndex: 10, boxShadow: '0 10px 15px rgba(0,0,0,0.5)' }}>
+                                                    <div style={{ position: 'absolute', right: '30px', top: '15px', background: '#2a2d32', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '5px', width: '160px', zIndex: 10, boxShadow: '0 10px 15px rgba(0,0,0,0.5)' }}>
                                                         
-                                                        {/* Nút Quản lý */}
-                                                        <button 
-                                                            onClick={(e) => { 
-                                                                e.stopPropagation(); 
-                                                                navigate(`/devices/${dev.device_id}`); 
-                                                                setOpenMenuId(null); 
-                                                            }}
-                                                            style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px' }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                        >
-                                                            <Settings size={16} /> Quản lý
-                                                        </button>
+                                                        {/* CHỈ QUẢN LÝ THẤY NÚT QUẢN LÝ CHI TIẾT VÀ GIAO XE */}
+                                                        {canManageDevices && (
+                                                            <>
+                                                                <button 
+                                                                    onClick={(e) => { 
+                                                                        e.stopPropagation(); 
+                                                                        navigate(`/devices/${dev.device_id}`); 
+                                                                    }}
+                                                                    style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px' }}
+                                                                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                >
+                                                                    <Settings size={16} /> Quản lý
+                                                                </button>
 
-                                                        {/* Nút Biểu đồ */}
+                                                                <button 
+                                                                    onClick={(e) => { 
+                                                                        e.stopPropagation(); 
+                                                                        setAssigningDevice(dev);
+                                                                        setSelectedUserId(dev.assigned_user_id || ''); // Khôi phục trạng thái cũ
+                                                                        setIsAssignModalOpen(true);
+                                                                        setOpenMenuId(null); 
+                                                                    }}
+                                                                    style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#a855f7', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
+                                                                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                >
+                                                                    <UserPlus size={16} /> Phân công
+                                                                </button>
+                                                            </>
+                                                        )}
+
                                                         <button 
                                                             onClick={(e) => { 
                                                                 e.stopPropagation(); 
                                                                 navigate(`/charts?id=${dev.device_id}`); 
-                                                                setOpenMenuId(null); 
                                                             }}
                                                             style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
                                                             onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
@@ -247,22 +323,24 @@ const handleAddSubmit = async (e) => {
                                                             <LineChart size={16} /> Biểu đồ
                                                         </button>
 
-                                                        {/* Nút Xóa */}
-                                                        <button 
-                                                            onClick={(e) => { 
-                                                                e.stopPropagation(); 
-                                                                handleDelete(dev.id); 
-                                                                setOpenMenuId(null); 
-                                                            }}
-                                                            style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                        >
-                                                            <Trash2 size={16} /> Xóa thiết bị
-                                                        </button>
+                                                        {/* CHỈ QUẢN LÝ THẤY NÚT XÓA */}
+                                                        {canManageDevices && (
+                                                            <button 
+                                                                onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    handleDelete(dev.id); 
+                                                                    setOpenMenuId(null); 
+                                                                }}
+                                                                style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
+                                                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                            >
+                                                                <Trash2 size={16} /> Xóa thiết bị
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
-                                                </td>
+                                            </td>
                                         </tr>
                                     ))
                                 )}
@@ -272,16 +350,11 @@ const handleAddSubmit = async (e) => {
                 </div>
             </div>
 
-            {/* MODAL THÊM MỚI (Popup) */}
+            {/* MODAL THÊM THIẾT BỊ MỚI */}
             {isModalOpen && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <div style={{ background: '#1c1e22', padding: '32px', borderRadius: '16px', width: '420px', border: '1px solid rgba(16, 185, 129, 0.3)', position: 'relative', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
-                        <button 
-                            onClick={() => setIsModalOpen(false)}
-                            style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer', transition: 'color 0.2s' }}
-                            onMouseOver={(e) => e.currentTarget.style.color = '#fff'}
-                            onMouseOut={(e) => e.currentTarget.style.color = '#8b8d93'}
-                        >
+                <div style={modalOverlayStyle}>
+                    <div style={modalBoxStyle}>
+                        <button onClick={() => setIsModalOpen(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer' }}>
                             <X size={24} />
                         </button>
 
@@ -292,62 +365,62 @@ const handleAddSubmit = async (e) => {
                         <form onSubmit={handleAddSubmit}>
                             <div style={{ marginBottom: '20px' }}>
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Device ID</label>
-                                <input 
-                                    type="text" 
-                                    required 
-                                    placeholder="VD: b1_hust_ubx" 
-                                    value={newDevice.device_id}
-                                    onChange={(e) => setNewDevice({...newDevice, device_id: e.target.value})}
-                                    style={{ width: '100%', padding: '14px', background: '#131517', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', color: 'white', outline: 'none', transition: 'border-color 0.3s' }}
-                                    onFocus={(e) => e.target.style.borderColor = '#10b981'}
-                                    onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.05)'}
-                                />
+                                <input type="text" required placeholder="VD: b1_hust_ubx" value={newDevice.device_id} onChange={(e) => setNewDevice({...newDevice, device_id: e.target.value})} style={inputStyle} />
                             </div>
                             <div style={{ marginBottom: '20px' }}>
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Site ID</label>
-                                <input 
-                                    type="text" 
-                                    required 
-                                    placeholder="VD: phong_lab_302" 
-                                    value={newDevice.site_id || ''} // Phòng hờ nếu chưa khởi tạo state
-                                    onChange={(e) => setNewDevice({...newDevice, site_id: e.target.value})}
-                                    style={{ width: '100%', padding: '14px', background: '#131517', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', color: 'white', outline: 'none', transition: 'border-color 0.3s' }}
-                                    onFocus={(e) => e.target.style.borderColor = '#10b981'}
-                                    onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.05)'}
-                                />
+                                <input type="text" required placeholder="VD: phong_lab_302" value={newDevice.site_id || ''} onChange={(e) => setNewDevice({...newDevice, site_id: e.target.value})} style={inputStyle} />
                             </div>
-
-                            {/* Ô chọn Loại thiết bị cũ của bạn giữ nguyên */}
                             <div style={{ marginBottom: '25px' }}>
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Loại thiết bị (Type)</label>
-                                <select 
-                                    value={newDevice.device_type}
-                                    onChange={(e) => setNewDevice({...newDevice, device_type: e.target.value})}
-                                    style={{ width: '100%', padding: '14px', background: '#131517', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', color: 'white', outline: 'none', cursor: 'pointer', appearance: 'none' }}
-                                >
+                                <select value={newDevice.device_type} onChange={(e) => setNewDevice({...newDevice, device_type: e.target.value})} style={{ ...inputStyle, cursor: 'pointer', appearance: 'none' }}>
                                     <option value="UBX">Dữ liệu UBX</option>
                                     <option value="RTCM">Dữ liệu RTCM</option>
                                     <option value="SBF">Dữ liệu SBF</option>
                                 </select>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                                <button 
-                                    type="button" 
-                                    onClick={() => setIsModalOpen(false)} 
-                                    style={{ background: 'transparent', color: '#8b8d93', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.2s' }}
-                                    onMouseOver={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; }}
-                                    onMouseOut={(e) => { e.currentTarget.style.color = '#8b8d93'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+                                <button type="button" onClick={() => setIsModalOpen(false)} style={{ background: 'transparent', color: '#8b8d93', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600' }}>Hủy</button>
+                                <button type="submit" style={{ background: '#10b981', color: '#131517', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700' }}>Xác nhận</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL PHÂN CÔNG TÀI XẾ (ASSIGN) */}
+            {isAssignModalOpen && assigningDevice && (
+                <div style={modalOverlayStyle}>
+                    <div style={modalBoxStyle}>
+                        <button onClick={() => setIsAssignModalOpen(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer' }}>
+                            <X size={24} />
+                        </button>
+
+                        <h2 style={{ color: '#ffffff', marginBottom: '25px', fontSize: '1.4rem' }}>
+                            Phân Công <span style={{ color: '#a855f7' }}>Tài Xế</span>
+                        </h2>
+                        
+                        <form onSubmit={handleAssignSubmit}>
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Thiết bị đang thao tác</label>
+                                <input type="text" disabled value={assigningDevice.device_id} style={{ ...inputStyle, background: 'rgba(255,255,255,0.02)', color: '#a3a3a3' }} />
+                            </div>
+                            <div style={{ marginBottom: '30px' }}>
+                                <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Chọn nhân sự phụ trách</label>
+                                <select 
+                                    value={selectedUserId} 
+                                    onChange={(e) => setSelectedUserId(e.target.value)} 
+                                    style={{ ...inputStyle, cursor: 'pointer', appearance: 'none' }}
                                 >
-                                    Hủy
-                                </button>
-                                <button 
-                                    type="submit" 
-                                    style={{ background: '#10b981', color: '#131517', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', transition: 'all 0.2s', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.2)' }}
-                                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                                >
-                                    Xác nhận
-                                </button>
+                                    <option value="">-- Thu hồi về kho (Không phân công) --</option>
+                                    {usersList.map(u => (
+                                        <option key={u.id} value={u.id}>{u.email} ({u.role_in_tenant})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                <button type="button" onClick={() => setIsAssignModalOpen(false)} style={{ background: 'transparent', color: '#8b8d93', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600' }}>Hủy</button>
+                                <button type="submit" style={{ background: '#a855f7', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700' }}>Lưu Phân Công</button>
                             </div>
                         </form>
                     </div>

@@ -8,28 +8,73 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, SessionLocal 
 from app.models import schema
 from app.api import auth, devices, telemetry
-from app.models.schema import Telemetry, User
+from app.models.schema import Telemetry, User, RawDataLog
 from app.core.security import get_password_hash
 
 schema.Base.metadata.create_all(bind=engine)
 load_dotenv()
 
-# Vẫn giữ nguyên hàm dọn rác
+# ==========================================
+# AUTO CLEANUP (TELEMETRY + RAW FILES)
+# ==========================================
 async def cleanup_old_telemetry_task():
+    # 1. Xác định đường dẫn gốc chứa các file log (Backend/storage/raw_logs)
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    raw_logs_dir = os.path.join(base_dir, "storage", "raw_logs")
+
     while True:
         db = SessionLocal()
         try:
             cutoff_time = datetime.now(timezone.utc) - timedelta(days=30)
-            deleted_count = db.query(Telemetry).filter(Telemetry.timestamp < cutoff_time).delete()
+            
+            # 2. Dọn dẹp bản ghi Telemetry
+            deleted_telemetry = db.query(Telemetry).filter(Telemetry.timestamp < cutoff_time).delete()
+            
+            # 3. Dọn dẹp các file vật lý & bản ghi RawDataLog
+            old_logs = db.query(RawDataLog).filter(RawDataLog.timestamp < cutoff_time).all()
+            file_deleted = 0
+            
+            for log in old_logs:
+                # Xóa file thật trên ổ cứng
+                if log.file_path and os.path.exists(log.file_path):
+                    try:
+                        os.remove(log.file_path)
+                        file_deleted += 1
+                    except Exception as e:
+                        print(f"[Cleanup Error] Không thể xóa file vật lý {log.file_path}: {e}")
+                        
+            # Xóa bản ghi trong Database sau khi dọn file vật lý xong
+            db.query(RawDataLog).filter(RawDataLog.timestamp < cutoff_time).delete()
             db.commit()
-            if deleted_count > 0:
-                print(f"[Cleanup Task] Đã dọn dẹp {deleted_count} bản ghi GNSS cũ hơn 30 ngày.")
+
+            # 4. QUÉT VÀ NUỐT CHỬNG THƯ MỤC TRỐNG
+            dirs_deleted = 0
+            if os.path.exists(raw_logs_dir):
+                for dir_name in os.listdir(raw_logs_dir):
+                    dir_path = os.path.join(raw_logs_dir, dir_name)
+                    
+                    # Kiểm tra xem nó có phải là thư mục không (bỏ qua file linh tinh nếu có)
+                    if os.path.isdir(dir_path):
+                        # Nếu thư mục không chứa bất kỳ file nào (rỗng)
+                        if not os.listdir(dir_path): 
+                            try:
+                                os.rmdir(dir_path) # Lệnh này chỉ xóa thư mục rỗng, rất an toàn
+                                dirs_deleted += 1
+                            except Exception as e:
+                                print(f"[Cleanup Error] Không thể xóa thư mục rỗng {dir_path}: {e}")
+            
+            # 5. Báo cáo kết quả
+            if deleted_telemetry > 0 or file_deleted > 0 or dirs_deleted > 0:
+                print(f"[Cleanup Task] Đã dọn dẹp {deleted_telemetry} Telemetry, {file_deleted} file RAW, và {dirs_deleted} thư mục trống.")
+                
         except Exception as e:
-            print(f"[Cleanup Error] Lỗi khi dọn dẹp Database: {e}")
+            print(f"[Cleanup Error] Lỗi khi dọn dẹp hệ thống: {e}")
             db.rollback()
         finally:
             db.close()
-        await asyncio.sleep(600)
+            
+        # Chạy kiểm tra 1 ngày 1 lần (24 giờ = 86400 giây)
+        await asyncio.sleep(86400)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

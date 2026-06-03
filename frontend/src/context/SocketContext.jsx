@@ -9,20 +9,27 @@ export const SocketProvider = ({ children }) => {
     const connectDevice = (deviceId) => {
         if (sockets.current[deviceId]) return;
 
-        // Tự động nhận diện giao thức (HTTP -> ws, HTTPS -> wss)
-const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-// Lấy đúng tên miền hoặc IP hiện tại của người dùng (bao gồm cả port nếu chạy local)
-const host = window.location.host; 
+        // 1. Lấy Token để vượt qua bức tường lửa WebSocket ở Backend
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
+        if (!token) {
+            console.error(`🚫 [${deviceId}] Bị chặn: Không tìm thấy Token xác thực.`);
+            return;
+        }
 
-// Ghép lại thành URL động
-const ws = new WebSocket(`${protocol}//${host}/ws/devices/${deviceId}`);
+        // 2. Dùng Nginx routing (Giữ nguyên logic cực mượt của bạn)
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host; 
+        
+        // NÂNG CẤP: Nối thêm ?token=... vào đuôi URL
+        const wsUrl = `${protocol}//${host}/ws/devices/${deviceId}?token=${token}`;
+        
+        const ws = new WebSocket(wsUrl);
         
         ws.onmessage = (event) => {
             const msg = JSON.parse(event.data);
-            console.log("📡 [TRẠM TỔNG] Payload:", msg); // Để ông dễ soi data
+            console.log(`📡 [TRẠM TỔNG - ${deviceId}] Payload:`, msg); 
 
-            // CƠ CHẾ BẮT BÁO ĐỘNG SIÊU NHẠY:
-            // Check cả schema, event_type, và check luôn lõi bên trong data
+            // Cơ chế bắt báo động
             const isAlarm = 
                 msg.event_type === "alarm" || 
                 msg.schema === "gnss.health.v1" || 
@@ -31,7 +38,7 @@ const ws = new WebSocket(`${protocol}//${host}/ws/devices/${deviceId}`);
                 (msg.data && msg.data.severity === "Critical");
 
             if (isAlarm) {
-                toast.error(`🚨 BÁO ĐỘNG [${deviceId}]: ${msg.data.message || 'Tín hiệu bất thường!'}`, {
+                toast.error(`🚨 BÁO ĐỘNG [${deviceId}]: ${msg.data?.message || 'Tín hiệu bất thường!'}`, {
                     position: "top-right",
                     autoClose: false,
                     theme: "colored"
@@ -41,29 +48,46 @@ const ws = new WebSocket(`${protocol}//${host}/ws/devices/${deviceId}`);
             window.dispatchEvent(new CustomEvent('device_update', { detail: msg }));
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
             delete sockets.current[deviceId];
-            // Có thể thêm logic tự động reconnect ở đây
+            
+            // 3. Bắt lỗi từ chối truy cập chéo công ty từ Backend (Mã 1008)
+            if (event.code === 1008) {
+                console.error(`❌ WS Bị từ chối [${deviceId}]:`, event.reason);
+                toast.warning(`Không có quyền truy cập luồng dữ liệu của thiết bị ${deviceId}`);
+            }
         };
 
         sockets.current[deviceId] = ws;
     };
 
-    // Khi đăng nhập xong và có danh sách thiết bị, hãy gọi hàm này
     const initAllDevices = async () => {
-        const token = localStorage.getItem("navis_token");
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
+        if (!token) return;
+
         try {
+            // Nhờ Nginx proxy nên gọi đường dẫn tương đối là đủ
             const res = await fetch("/api/devices", {
                 headers: { "Authorization": `Bearer ${token}` }
             });
+            
+            if (!res.ok) throw new Error(`Lỗi API: ${res.status}`);
+            
             const devices = await res.json();
+            // Lặp qua danh sách xe (đã được Backend lọc sẵn theo quyền)
             devices.forEach(dev => connectDevice(dev.device_id));
-        } catch (e) { console.error("Không thể khởi tạo Radar toàn cầu", e); }
+        } catch (e) { 
+            console.error("Không thể khởi tạo Radar", e); 
+        }
     };
 
     useEffect(() => {
-        const token = localStorage.getItem("navis_token");
-        if (token) initAllDevices();
+        initAllDevices();
+        
+        // Dọn dẹp đóng các kết nối khi đổi trang hoặc unmount
+        return () => {
+            Object.values(sockets.current).forEach(ws => ws.close());
+        };
     }, []);
 
     return (

@@ -11,8 +11,12 @@ class Tenant(Base):
     __tablename__ = "tenants"
     
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True, nullable=False) # Tên công ty (VD: Vận tải Hải Vân)
-    subscription_plan = Column(String, default="free") # Gói cước: free, pro, enterprise
+    name = Column(String, unique=True, index=True, nullable=False)
+    subscription_plan = Column(String, default="free")
+    
+    # NÂNG CẤP MỚI: Giới hạn số thiết bị tối đa (0 = không giới hạn)
+    max_devices = Column(Integer, default=5, nullable=False) 
+    
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_active = Column(Boolean, default=True)
 

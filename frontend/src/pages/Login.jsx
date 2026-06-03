@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 // Import thư viện thông báo và style
 import { ToastContainer, toast } from 'react-toastify';
@@ -22,6 +23,7 @@ const EyeOffIcon = () => (
 
 const Login = () => {
     const navigate = useNavigate();
+    const { login } = useAuth(); // Lấy hàm login từ Context
     const [currentForm, setCurrentForm] = useState('login'); 
     
     const [formData, setFormData] = useState({
@@ -61,7 +63,7 @@ const Login = () => {
             });
             const data = await response.json();
             if (response.ok) {
-                localStorage.setItem("navis_token", data.access_token);
+                login(data.access_token); 
                 toast.success("Đăng nhập thành công!");
                 navigate('/dashboard'); 
             } else {

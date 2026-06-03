@@ -114,11 +114,15 @@ const Charts = () => {
         setIsLive(false);
 
         const loadHistory = async () => {
-            const token = localStorage.getItem("navis_token");
+            // Hỗ trợ lấy token từ cả 2 key phổ biến
+            const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
             try {
-                const res = await fetch(`/api/devices/${selectedDeviceId}/telemetry?limit=${MAX_HISTORY}`, {
+                // SỬA LỖI API: Đổi endpoint sang router telemetry mới
+                const res = await fetch(`/api/telemetry/devices/${selectedDeviceId}?limit=${MAX_HISTORY}`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
+                
+                if (!res.ok) throw new Error("Không thể tải lịch sử dữ liệu");
                 const dataArray = await res.json();
 
                 if (dataArray && dataArray.length > 0) {

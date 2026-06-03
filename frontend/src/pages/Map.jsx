@@ -70,7 +70,8 @@ const MapPage = () => {
                 // Kéo thêm nhịp tim cuối cùng cho từng xe
                 const telemetryPromises = dbDevices.map(async (dev) => {
                     try {
-                        const telRes = await fetch(`/api/devices/${dev.device_id}/telemetry?limit=1`, {
+                        // SỬA LỖI API: Đổi đường dẫn trỏ về Router Telemetry
+                        const telRes = await fetch(`/api/telemetry/devices/${dev.device_id}?limit=1`, {
                             headers: { "Authorization": `Bearer ${token}` }
                         });
                         if (telRes.ok) {
@@ -212,9 +213,10 @@ const MapPage = () => {
             mapRef.current.flyTo([dev.latitude, dev.longitude], 17, { duration: 1.5 });
         }
 
-        const token = localStorage.getItem("navis_token");
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         try {
-            const res = await fetch(`/api/devices/${dev.device_id}/telemetry?limit=1`, {
+            // SỬA LỖI API: Đổi đường dẫn lấy 1 bản ghi Telemetry gần nhất
+            const res = await fetch(`/api/telemetry/devices/${dev.device_id}?limit=1`, {
                 headers: { "Authorization": `Bearer ${token}` }
             });
             

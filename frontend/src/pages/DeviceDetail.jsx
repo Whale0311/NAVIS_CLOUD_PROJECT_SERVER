@@ -1,68 +1,75 @@
+// src/pages/DeviceDetail.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Terminal, Download, Info, Power, Loader2, MoreVertical, Trash2 } from 'lucide-react';
+import { ArrowLeft, Terminal, Download, Power, Loader2, MoreVertical, Trash2, ShieldAlert } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { useAuth } from '../context/AuthContext'; // IMPORT BỘ XỬ LÝ QUYỀN
 
 const DeviceDetail = () => {
     const { deviceId } = useParams();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('control'); 
     
+    // =====================================
+    // BỨC TƯỜNG LỬA BẢO VỆ TRANG
+    // =====================================
+    const { user } = useAuth();
+    // Chỉ Admin, Giám đốc, hoặc Nhân viên Vận hành (operator) mới được vào trang này
+    const canControlDevice = user?.role === 'admin' || ['tenant_admin', 'operator'].includes(user?.role_in_tenant);
+    
+    // Nếu là Tài xế (viewer), chặn đứng và đá về trang chủ ngay lập tức
+    useEffect(() => {
+        if (!canControlDevice) {
+            toast.error("Truy cập bị từ chối! Bạn không có quyền cấu hình thiết bị.");
+            navigate('/devices');
+        }
+    }, [canControlDevice, navigate]);
+
+    const [activeTab, setActiveTab] = useState('control'); 
     const [files, setFiles] = useState([]);
     const [isSendingCmd, setIsSendingCmd] = useState(false);
     
-    // State cho UI
     const [openMenuId, setOpenMenuId] = useState(null);
-    const [showGuide, setShowGuide] = useState(false); // State bật/tắt cẩm nang lệnh
-    // =====================================
-    // STATE CHO 5 LỆNH CHUẨN UBLOX (SCHEMA 9.5)
-    // =====================================
+    const [showGuide, setShowGuide] = useState(false); 
+
     const [selectedCmd, setSelectedCmd] = useState('start');
-    const [cmdParams, setCmdParams] = useState({ mode: 'realtime' }); // Lưu object params gửi đi
+    const [cmdParams, setCmdParams] = useState({ mode: 'realtime' }); 
+
+    const timeoutRef = useRef(null);
+    const toastIdRef = useRef(null);
 
     const handleCmdChange = (e) => {
         const cmd = e.target.value;
         setSelectedCmd(cmd);
         
-        // Tự động load tham số mặc định chuẩn Schema khi đổi lệnh
         if (cmd === 'start') setCmdParams({ mode: 'realtime' });
         else if (cmd === 'stop') setCmdParams({ reason: 'user_requested' });
         else if (cmd === 'restart') setCmdParams({ scope: 'pipeline' });
         else if (cmd === 'status') setCmdParams({});
         else if (cmd === 'configure') setCmdParams({ reference_svid: 3, min_sat_count: 4 });
     };
-    // Ref để quản lý Timeout của lệnh gửi
-    const timeoutRef = useRef(null);
-    const toastIdRef = useRef(null);
-    // ===============================================
+
     // LẮNG NGHE PHẢN HỒI LỆNH TỪ TRẠM RADAR TOÀN CỤC
-    // ===============================================
     useEffect(() => {
         const handleGlobalUpdate = (event) => {
             const msg = event.detail;
-            
             const isAck = msg.event_type === "command_ack" || msg.schema === "gnss.cmd.ack.v1" || msg.event_type === "ack";
 
             if (isAck && msg.device_id === deviceId) {
                 setIsSendingCmd(false); 
                 clearTimeout(timeoutRef.current); 
-                
-                // UPDATE LẠI THÔNG BÁO THÀNH CÔNG (Tự động tắt sau 3s)
                 toast.update(toastIdRef.current, { render: "Mạch đã phản hồi lệnh thành công!", type: "success", isLoading: false, autoClose: 3000 });
             }
         };
 
-        // Bật tai lên nghe
         window.addEventListener('device_update', handleGlobalUpdate);
-        
-        // Rút tai nghe khi thoát trang
         return () => window.removeEventListener('device_update', handleGlobalUpdate);
     }, [deviceId]);
 
-    // 2. FETCH FILE
+    // FETCH FILE
     useEffect(() => {
-        if (activeTab === 'files') {
-            const token = localStorage.getItem("navis_token");
+        if (activeTab === 'files' && canControlDevice) {
+            const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
             fetch(`/api/devices/${deviceId}/files`, {
                 headers: { "Authorization": `Bearer ${token}` }
             })
@@ -70,52 +77,44 @@ const DeviceDetail = () => {
             .then(data => setFiles(data))
             .catch(() => toast.error("Lỗi lấy danh sách file"));
         }
-    }, [activeTab, deviceId]);
+    }, [activeTab, deviceId, canControlDevice]);
 
-    // 3. GỬI LỆNH (CÓ TIMEOUT - ĐÃ FIX RACE CONDITION)
-const sendCommand = async (cmdType, customPayload = {}) => {
-    setIsSendingCmd(true);
-    const token = localStorage.getItem("navis_token");
-    
-    // ========================================================
-    // BƯỚC 1: BẬT LOADING VÀ ĐẾM NGƯỢC NGAY LẬP TỨC TRƯỚC KHI GỬI API
-    // ========================================================
-    toastIdRef.current = toast.loading(`Đang gửi lệnh ${cmdType}, chờ phản hồi...`);
-    
-    timeoutRef.current = setTimeout(() => {
-        setIsSendingCmd(false);
-        toast.update(toastIdRef.current, { render: "Thiết bị không phản hồi (Timeout)!", type: "warning", isLoading: false, autoClose: 3000 });
-    }, 10000);
-
-    // ========================================================
-    // BƯỚC 2: BẮT ĐẦU GỬI API CHO SERVER
-    // ========================================================
-    try {
-        const res = await fetch(`/api/devices/${deviceId}/command/${cmdType}`, {
-            method: 'POST',
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-            // THAY ĐỔI: Truyền thẳng customPayload thay vì bọc trong { payload: ... }
-            body: JSON.stringify(customPayload) 
-        });
+    // GỬI LỆNH (CÓ TIMEOUT)
+    const sendCommand = async (cmdType, customPayload = {}) => {
+        setIsSendingCmd(true);
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         
-        // Nếu Server lỗi (500) hoặc lỗi xác thực (401), phải hủy đồng hồ đếm ngược ngay
-        if (!res.ok) {
+        toastIdRef.current = toast.loading(`Đang gửi lệnh ${cmdType}, chờ phản hồi...`);
+        
+        timeoutRef.current = setTimeout(() => {
+            setIsSendingCmd(false);
+            toast.update(toastIdRef.current, { render: "Thiết bị không phản hồi (Timeout)!", type: "warning", isLoading: false, autoClose: 3000 });
+        }, 10000);
+
+        try {
+            const res = await fetch(`/api/devices/${deviceId}/command/${cmdType}`, {
+                method: 'POST',
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify(customPayload) 
+            });
+            
+            if (!res.ok) {
+                clearTimeout(timeoutRef.current);
+                toast.update(toastIdRef.current, { render: "Lỗi Server khi gửi lệnh!", type: "error", isLoading: false, autoClose: 3000 });
+                setIsSendingCmd(false);
+            }
+        } catch (error) {
             clearTimeout(timeoutRef.current);
-            toast.update(toastIdRef.current, { render: "Lỗi Server khi gửi lệnh!", type: "error", isLoading: false, autoClose: 3000 });
+            toast.update(toastIdRef.current, { render: "Lỗi mạng khi gửi lệnh!", type: "error", isLoading: false, autoClose: 3000 });
             setIsSendingCmd(false);
         }
-    } catch (error) {
-        clearTimeout(timeoutRef.current);
-        toast.update(toastIdRef.current, { render: "Lỗi mạng khi gửi lệnh!", type: "error", isLoading: false, autoClose: 3000 });
-        setIsSendingCmd(false);
-    }
-};
+    };
 
-    // 4. TẢI FILE
+    // TẢI FILE
     const handleDownloadFile = async (fileId, fileName) => {
         setOpenMenuId(null);
         const toastId = toast.loading("Đang tải dữ liệu...");
-        const token = localStorage.getItem("navis_token");
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         try {
             const res = await fetch(`/api/files/download/${fileId}`, {
                 headers: { "Authorization": `Bearer ${token}` }
@@ -138,12 +137,12 @@ const sendCommand = async (cmdType, customPayload = {}) => {
         }
     };
 
-    // HÀM XÓA FILE HOÀN THIỆN
+    // XÓA FILE 
     const handleDeleteFile = async (fileId) => {
-        setOpenMenuId(null); // Đóng menu 3 chấm
+        setOpenMenuId(null); 
         
         if(window.confirm("CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn file dữ liệu này? Không thể khôi phục lại!")) {
-            const token = localStorage.getItem("navis_token");
+            const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
             try {
                 const res = await fetch(`/api/files/${fileId}`, {
                     method: 'DELETE',
@@ -152,7 +151,6 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                 
                 if (res.ok) {
                     toast.success("Đã xóa file thành công!");
-                    // Tự động loại bỏ file vừa xóa khỏi danh sách hiện tại để UI cập nhật ngay lập tức
                     setFiles(files.filter(f => f.id !== fileId)); 
                 } else {
                     toast.error("Lỗi khi xóa file từ Server!");
@@ -163,7 +161,6 @@ const sendCommand = async (cmdType, customPayload = {}) => {
         }
     };
 
-    // Đóng dropdown khi click ra ngoài
     useEffect(() => {
         const handleClickOutside = () => {
             setOpenMenuId(null);
@@ -172,6 +169,9 @@ const sendCommand = async (cmdType, customPayload = {}) => {
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
+
+    // Nếu không có quyền, render trang trống để chờ chuyển hướng (tránh chớp UI)
+    if (!canControlDevice) return null;
 
     return (
         <>
@@ -194,11 +194,11 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                         </button>
                     </div>
 
-                    {/* TAB ĐIỀU KHIỂN (2 Cột) */}
+                    {/* TAB ĐIỀU KHIỂN */}
                     {activeTab === 'control' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
                             
-                            {/* CỘT 1: LỆNH HỆ THỐNG (SCHEMA 9.4) */}
+                            {/* CỘT 1: LỆNH HỆ THỐNG */}
                             <div style={{ background: '#131517', padding: '25px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column' }}>
                                 <h3 style={{ color: '#fff', marginTop: 0, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <Power size={20} color="#ef4444"/> Lệnh Hệ Thống
@@ -221,7 +221,7 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                                 </div>
                             </div>
 
-                            {/* CỘT 2: LỆNH MODULE UBLOX (SCHEMA 9.5) */}
+                            {/* CỘT 2: LỆNH MODULE UBLOX */}
                             <div style={{ background: '#131517', padding: '25px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                                 <h3 style={{ color: '#fff', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <Terminal size={20} color="#3b82f6"/> Điều khiển Ublox Pipeline
@@ -245,7 +245,6 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                                     </select>
                                 </div>
 
-                                {/* GIAO DIỆN THAM SỐ (PARAMS) BIẾN HÌNH */}
                                 {selectedCmd !== 'status' && (
                                     <div style={{ marginBottom: '20px', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px', border: '1px dashed rgba(255,255,255,0.05)' }}>
                                         <label style={{ color: '#8b8d93', fontSize: '0.85rem', display: 'block', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -289,7 +288,6 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                                     </div>
                                 )}
 
-                                {/* NÚT BẮN LỆNH */}
                                 <button 
                                     onClick={() => sendCommand(selectedCmd, cmdParams)}
                                     disabled={isSendingCmd}
@@ -313,7 +311,6 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                                         <th style={{ color: '#8b8d93', padding: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Tên File</th>
                                         <th style={{ color: '#8b8d93', padding: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Thời gian tạo</th>
                                         <th style={{ color: '#8b8d93', padding: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Kích thước</th>
-                                        {/* Bỏ chữ Hành Động */}
                                         <th style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', width: '50px' }}></th> 
                                     </tr>
                                 </thead>
@@ -324,7 +321,6 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                                             <td style={{ padding: '15px', color: '#e2e8f0' }}>{new Date(f.timestamp + 'Z').toLocaleString('vi-VN')}</td>
                                             <td style={{ padding: '15px', color: '#e2e8f0' }}>{(f.file_size_bytes / 1024).toFixed(2)} KB</td>
                                             <td style={{ padding: '15px', textAlign: 'center', position: 'relative' }}>
-                                                
                                                 <button 
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -345,6 +341,8 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                                                         >
                                                             <Download size={16} color="#10b981" /> Tải xuống
                                                         </button>
+                                                        
+                                                        {/* Nút Xóa File (Giới hạn quyền tương tự) */}
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); handleDeleteFile(f.id); }}
                                                             style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
@@ -372,7 +370,7 @@ const sendCommand = async (cmdType, customPayload = {}) => {
                 .spin { animation: spin 1s linear infinite; }
                 @keyframes spin { 100% { transform: rotate(360deg); } }
             `}</style>
-            </>
+        </>
     );
 };
 
