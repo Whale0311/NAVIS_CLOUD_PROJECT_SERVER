@@ -52,14 +52,20 @@ const Users = () => {
         e.preventDefault();
         const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         
+        // CHỐT AN TOÀN: Nếu là Super Admin mà state bị kẹt ở viewer, ép nó về tenant_admin
+        let finalRoleInTenant = newUser.role_in_tenant;
+        if (isSuperAdmin && finalRoleInTenant === 'viewer') {
+            finalRoleInTenant = 'tenant_admin';
+        }
+
         // Tạo payload linh hoạt dựa trên cấp bậc
         const payload = {
             email: newUser.email,
             password: newUser.password,
-            role: newUser.role_in_tenant === 'admin' ? 'admin' : 'user',
-            role_in_tenant: newUser.role_in_tenant === 'admin' ? 'admin' : newUser.role_in_tenant,
-            // MỚI: Chỉ gửi thông tin Công ty khi Super Admin tạo Giám đốc
-            ...(isSuperAdmin && newUser.role_in_tenant === 'tenant_admin' && {
+            role: finalRoleInTenant === 'admin' ? 'admin' : 'user',
+            role_in_tenant: finalRoleInTenant,
+            // CHỈ gửi thông tin Công ty khi tạo Giám đốc
+            ...(isSuperAdmin && finalRoleInTenant === 'tenant_admin' && {
                 tenant_name: newUser.tenant_name,
                 max_devices: newUser.max_devices
             })
@@ -147,7 +153,17 @@ const Users = () => {
                             </span>
                         </div>
                         <button 
-                            onClick={() => setIsAddModalOpen(true)}
+                            onClick={() => {
+                                setNewUser({ 
+                                    email: '', 
+                                    password: '', 
+                                    role: isSuperAdmin ? 'admin' : 'user', 
+                                    role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer', 
+                                    tenant_name: '', 
+                                    max_devices: 5 
+                                });
+                                setIsAddModalOpen(true);
+                            }}
                             style={{ background: '#10b981', color: '#131517', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}
                             onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
                             onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
@@ -188,7 +204,7 @@ const Users = () => {
                                             
                                             {isSuperAdmin && (
                                                 <td style={{ padding: '18px 10px', color: '#e2e8f0' }}>
-                                                    {isRootAdmin ? 'Hệ thống (System)' : (u.tenant_name || `Tenant #${u.tenant_id}`)}
+                                                    {isRootAdmin ? 'Hệ thống (System)' : (u.tenant_name || (u.tenant_id ? `Tenant #${u.tenant_id}` : 'Chưa gắn công ty'))}
                                                 </td>
                                             )}
 

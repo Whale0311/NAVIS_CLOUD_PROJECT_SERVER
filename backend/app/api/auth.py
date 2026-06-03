@@ -27,15 +27,13 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     if db_user:
         raise HTTPException(status_code=400, detail="Email này đã được đăng ký!")
 
-    # TẠO TENANT (CÔNG TY) MỚI CHO TÀI KHOẢN NÀY
     company_name = f"Company of {user.email.split('@')[0]}"
     new_tenant = Tenant(name=company_name, subscription_plan="free")
     db.add(new_tenant)
-    db.flush() # Lấy ID của Tenant vừa tạo mà chưa cần commit
+    db.flush() 
 
     hashed_password = get_password_hash(user.password)
     
-    # Gán User mới vào Tenant vừa tạo, cấp quyền cao nhất trong nội bộ Công ty
     new_user = User(
         email=user.email, 
         hashed_password=hashed_password, 
@@ -48,9 +46,8 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Đăng ký thành công! Không gian làm việc của bạn đã sẵn sàng."}
 
-
 # ==========================================
-# 2. ĐĂNG NHẬP & NHÚNG THÔNG TIN VÀO TOKEN
+# 2. ĐĂNG NHẬP & QUÊN MẬT KHẨU
 # ==========================================
 @router.post("/api/login")
 def login_user(user: UserLogin, db: Session = Depends(get_db)):
@@ -58,7 +55,6 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
     if not db_user or not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=401, detail="Email hoặc mật khẩu không chính xác!")
     
-    # NÂNG CẤP JWT: Nhúng tenant_id và role_in_tenant vào payload
     access_token = create_access_token(data={
         "sub": db_user.email,
         "role": db_user.role,
@@ -74,11 +70,9 @@ def forgot_password(req: ForgotPassword, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Email không tồn tại trong hệ thống!")
     return {"message": "Một đường link khôi phục mật khẩu đã được gửi tới email của bạn!"}
 
-
 # ==========================================
-# 3. PHÂN QUYỀN VÀ BẢO MẬT MULTI-TENANT
+# 3. PHÂN QUYỀN MULTI-TENANT & SCHEMAS
 # ==========================================
-# THÊM TRƯỜNG TENANT_NAME ĐỂ TRẢ VỀ CHO FRONTEND
 class UserResponse(BaseModel):
     id: int
     email: str
@@ -90,7 +84,6 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# BỔ SUNG TRƯỜNG ĐÓN NHẬN TÊN CÔNG TY TỪ GIAO DIỆN
 class AdminCreateUser(BaseModel):
     email: str
     password: str
@@ -123,11 +116,10 @@ def require_tenant_admin(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Chỉ Quản trị viên (Admin) của tổ chức mới có quyền này!")
     return current_user
 
-
 # ==========================================
-# 4. API QUẢN LÝ NHÂN VIÊN THEO CÔNG TY
+# 4. API QUẢN LÝ NHÂN VIÊN
 # ==========================================
-@router.get("/api/users", response_model=List[UserResponse])
+@router.get("/api/users")
 def get_users(admin: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
     if admin.role == "admin": 
         results = db.query(User, Tenant).outerjoin(Tenant, User.tenant_id == Tenant.id).all()
@@ -136,18 +128,15 @@ def get_users(admin: User = Depends(require_tenant_admin), db: Session = Depends
     
     final_list = []
     for u, t in results:
-        # Chuyển đổi thành Dictionary để Pydantic render không bị rớt trường tenant_name
         user_dict = {
             "id": u.id,
             "email": u.email,
             "role": u.role,
             "tenant_id": u.tenant_id,
             "role_in_tenant": u.role_in_tenant,
-            "created_at": u.created_at,
-            "tenant_name": t.name if t else None
+            "tenant_name": t.name if t else "Hệ thống (System)"
         }
         final_list.append(user_dict)
-        
     return final_list
 
 @router.post("/api/users")
@@ -158,7 +147,6 @@ def create_tenant_user(user_data: AdminCreateUser, admin: User = Depends(require
     hashed_pw = get_password_hash(user_data.password)
     tenant_name_response = None
 
-    # KỊCH BẢN 1: Super Admin tạo Giám đốc (Tạo kèm công ty mới)
     if admin.role == "admin" and user_data.role_in_tenant == "tenant_admin":
         if not user_data.tenant_name:
             raise HTTPException(status_code=400, detail="Vui lòng cung cấp tên Công ty (Tenant Name)!")
@@ -176,7 +164,6 @@ def create_tenant_user(user_data: AdminCreateUser, admin: User = Depends(require
         )
         tenant_name_response = new_tenant.name
 
-    # KỊCH BẢN 2: Super Admin tạo Super Admin khác
     elif admin.role == "admin" and user_data.role_in_tenant == "admin":
         new_user = User(
             email=user_data.email, 
@@ -187,7 +174,6 @@ def create_tenant_user(user_data: AdminCreateUser, admin: User = Depends(require
         )
         tenant_name_response = "Hệ thống (System)"
 
-    # KỊCH BẢN 3: Giám đốc tạo Tài xế / Vận hành
     elif admin.role_in_tenant == "tenant_admin":
         if user_data.role_in_tenant in ["admin", "tenant_admin"]:
             raise HTTPException(status_code=403, detail="Bạn không có quyền tạo cấp bậc này!")
@@ -199,7 +185,6 @@ def create_tenant_user(user_data: AdminCreateUser, admin: User = Depends(require
             tenant_id=admin.tenant_id,
             role_in_tenant=user_data.role_in_tenant
         )
-        # Lấy tên công ty hiện tại của Giám đốc
         t = db.query(Tenant).filter(Tenant.id == admin.tenant_id).first()
         tenant_name_response = t.name if t else None
     else:
@@ -209,7 +194,6 @@ def create_tenant_user(user_data: AdminCreateUser, admin: User = Depends(require
     db.commit()
     db.refresh(new_user)
     
-    # Trả về kèm tên công ty để Frontend render không bị lỗi
     return {
         "id": new_user.id,
         "email": new_user.email,
@@ -225,7 +209,6 @@ def delete_tenant_user(user_id: int, admin: User = Depends(require_tenant_admin)
     if not target_user:
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
     
-    # Bức tường lửa: Chống xóa user của công ty khác (Super Admin thì được qua)
     if admin.role != "admin" and target_user.tenant_id != admin.tenant_id:
         raise HTTPException(status_code=403, detail="Bạn không có quyền xóa nhân sự của tổ chức khác!")
         
@@ -242,7 +225,6 @@ def change_tenant_user_password(user_id: int, data: AdminUpdatePassword, admin: 
     if not target_user:
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
         
-    # Bức tường lửa: Chống đổi pass của user công ty khác
     if admin.role != "admin" and target_user.tenant_id != admin.tenant_id:
         raise HTTPException(status_code=403, detail="Bạn không có quyền thay đổi thông tin của tổ chức khác!")
         
