@@ -219,7 +219,7 @@ const Users = () => {
                                                     </span>
                                                 ) : (
                                                     <span style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.2)', padding: '6px 12px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                                        <User size={16} /> {u.role_in_tenant === 'operator' ? 'Vận Hành' : 'Tài Xế'}
+                                                        <User size={16} /> {u.role_in_tenant === 'operator' ? 'Manager' : 'User'}
                                                     </span>
                                                 )}
                                             </td>
@@ -292,8 +292,8 @@ const Users = () => {
                                     )}
                                     {isTenantAdmin && (
                                         <>
-                                            <option value="viewer">Tài xế / Người giám sát (Chỉ xem)</option>
-                                            <option value="operator">Nhân viên Vận hành (Điều khiển thiết bị)</option>
+                                            <option value="viewer">User (Chỉ xem)</option>
+                                            <option value="operator">Manager (Điều khiển thiết bị)</option>
                                         </>
                                     )}
                                 </select>

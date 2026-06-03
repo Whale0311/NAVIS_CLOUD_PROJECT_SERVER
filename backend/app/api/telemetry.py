@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional # Bổ sung Optional để cho phép trả về null
 
 from app.models.schema import Device, Telemetry, User
 from app.schemas import TelemetryCreate, TelemetryResponse
 from app.core.database import get_db
 
-# IMPORT HÀM KIỂM TRA BẢO MẬT (Đảm bảo đường dẫn này khớp với project của bạn)
+# IMPORT HÀM KIỂM TRA BẢO MẬT
 from app.api.auth import get_current_user 
 
 router = APIRouter(
@@ -24,23 +24,19 @@ def ingest_telemetry(data: TelemetryCreate, db: Session = Depends(get_db)):
     API endpoint để nhận dữ liệu telemetry từ devices (Thường do Worker gọi)
     """
     try:
-        # 1. Tìm xem thiết bị có tồn tại không
         db_device = db.query(Device).filter(Device.device_id == data.device_id_str).first()
         
         if not db_device:
             raise HTTPException(status_code=404, detail=f"Thiết bị '{data.device_id_str}' không tồn tại")
 
-        # 2. Cập nhật trạng thái "Last Seen" và Tọa độ hiện tại cho thiết bị
         db_device.last_seen = data.event_time 
         db_device.is_active = True
         if data.latitude and data.longitude:
             db_device.latitude = data.latitude
             db_device.longitude = data.longitude
 
-        # 3. Ép kiểu danh sách tín hiệu thành mảng dict (JSON)
-        signals_json = [sig.model_dump() for sig in data.signals_data] # Dùng model_dump() thay cho dict() trong Pydantic v2
+        signals_json = [sig.model_dump() for sig in data.signals_data] 
 
-        # 4. Lưu dòng lịch sử mới với ĐẦY ĐỦ các trường từ MQTT Schema
         new_telemetry = Telemetry(
             device_id=db_device.id,
             event_id=data.event_id,
@@ -81,19 +77,20 @@ def ingest_telemetry(data: TelemetryCreate, db: Session = Depends(get_db)):
 @router.get("/devices/{device_id_str}", response_model=List[TelemetryResponse])
 def get_device_telemetry(
     device_id_str: str, 
-    limit: int = 60, 
+    limit: int = 6, 
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user) # BỔ SUNG KHÓA BẢO MẬT
+    current_user: User = Depends(get_current_user)
 ):
     """Lấy dữ liệu telemetry gần nhất của một device"""
     db_device = db.query(Device).filter(Device.device_id == device_id_str).first()
+    
+    # Chỉ báo 404 nếu thiết bị bị xóa hoặc nhập sai ID, không báo 404 vì thiếu dữ liệu GPS
     if not db_device:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy thiết bị '{device_id_str}'")
 
     if current_user.role != "admin" and db_device.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=403, detail="Bạn không có quyền xem dữ liệu thiết bị của tổ chức khác!")
         
-    # 2. Nếu là nhân viên thường (Viewer/Operator), CHỈ được xem xe của chính mình
     if current_user.role != "admin" and current_user.role_in_tenant != "tenant_admin":
         if db_device.assigned_user_id != current_user.id:
             raise HTTPException(status_code=403, detail="Bạn không có quyền xem tọa độ/dữ liệu của chiếc xe này!")
@@ -104,17 +101,19 @@ def get_device_telemetry(
         .limit(limit)\
         .all()
     
+    # Nếu list trống, trả về [] an toàn cho Frontend
     return telemetries[::-1]
 
 
 # ==========================================
 # 3. API LẤY DỮ LIỆU MỚI NHẤT (Dành cho Map/Popup)
 # ==========================================
-@router.get("/devices/{device_id_str}/latest", response_model=TelemetryResponse)
+# Đổi response_model thành Optional để FastApi cho phép trả về null (None) thay vì ném lỗi
+@router.get("/devices/{device_id_str}/latest", response_model=Optional[TelemetryResponse])
 def get_latest_telemetry(
     device_id_str: str, 
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user) # BỔ SUNG KHÓA BẢO MẬT
+    current_user: User = Depends(get_current_user)
 ):
     """Lấy bản ghi telemetry mới nhất của một device"""
     db_device = db.query(Device).filter(Device.device_id == device_id_str).first()
@@ -124,7 +123,6 @@ def get_latest_telemetry(
     if current_user.role != "admin" and db_device.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=403, detail="Bạn không có quyền xem dữ liệu thiết bị của tổ chức khác!")
         
-    # 2. Nếu là nhân viên thường (Viewer/Operator), CHỈ được xem xe của chính mình
     if current_user.role != "admin" and current_user.role_in_tenant != "tenant_admin":
         if db_device.assigned_user_id != current_user.id:
             raise HTTPException(status_code=403, detail="Bạn không có quyền xem tọa độ/dữ liệu của chiếc xe này!")
@@ -134,7 +132,8 @@ def get_latest_telemetry(
         .order_by(Telemetry.timestamp.desc())\
         .first()
 
+    # SỬA LỖI Ở ĐÂY: Trả về None (null) thay vì ném HTTPException 404
     if not latest:
-        raise HTTPException(status_code=404, detail=f"Chưa có dữ liệu telemetry cho '{device_id_str}'")
+        return None
 
     return latest
