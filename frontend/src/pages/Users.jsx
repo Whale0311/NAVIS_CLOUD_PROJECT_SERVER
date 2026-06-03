@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { Users as UsersIcon, UserPlus, KeyRound, Trash2, X, ShieldCheck, User, Briefcase } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { useAuth } from '../context/AuthContext'; // IMPORT BỘ XỬ LÝ QUYỀN
+import { useAuth } from '../context/AuthContext';
 
 const API_URL = "/api/users";
 
 const Users = () => {
-    const { user } = useAuth(); // Lấy thông tin user hiện tại từ Context
+    const { user } = useAuth(); 
     const isSuperAdmin = user?.role === 'admin';
     const isTenantAdmin = user?.role_in_tenant === 'tenant_admin';
     const currentEmail = user?.email;
@@ -19,17 +19,17 @@ const Users = () => {
     const [newUser, setNewUser] = useState({ 
         email: '', 
         password: '', 
-        role: 'user', 
-        role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer' // Giá trị mặc định theo cấp bậc
+        role: isSuperAdmin ? 'admin' : 'user', // Mặc định role hệ thống
+        role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer', 
+        tenant_name: '', // MỚI: Tên công ty
+        max_devices: 5   // MỚI: Giới hạn thiết bị
     });
 
-    // Quản lý Modal Đổi mật khẩu
     const [isPassModalOpen, setIsPassModalOpen] = useState(false);
     const [targetUserId, setTargetUserId] = useState(null);
     const [newPassword, setNewPassword] = useState('');
 
     useEffect(() => {
-        // Backend đã lo việc chặn quyền và lọc danh sách theo Tenant
         fetchUsers();
     }, []);
 
@@ -52,12 +52,17 @@ const Users = () => {
         e.preventDefault();
         const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         
-        // Chuẩn bị payload chuẩn bị gửi đi
+        // Tạo payload linh hoạt dựa trên cấp bậc
         const payload = {
             email: newUser.email,
             password: newUser.password,
-            role: newUser.role,
-            role_in_tenant: newUser.role_in_tenant
+            role: newUser.role_in_tenant === 'admin' ? 'admin' : 'user',
+            role_in_tenant: newUser.role_in_tenant === 'admin' ? 'admin' : newUser.role_in_tenant,
+            // MỚI: Chỉ gửi thông tin Công ty khi Super Admin tạo Giám đốc
+            ...(isSuperAdmin && newUser.role_in_tenant === 'tenant_admin' && {
+                tenant_name: newUser.tenant_name,
+                max_devices: newUser.max_devices
+            })
         };
 
         try {
@@ -70,7 +75,8 @@ const Users = () => {
                 setIsAddModalOpen(false);
                 setNewUser({ 
                     email: '', password: '', role: 'user', 
-                    role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer' 
+                    role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer',
+                    tenant_name: '', max_devices: 5
                 });
                 fetchUsers();
                 toast.success("Tạo tài khoản thành công!");
@@ -119,9 +125,7 @@ const Users = () => {
         } catch (error) { toast.error("Lỗi kết nối Server"); }
     };
 
-    // ==========================================
     // STYLES
-    // ==========================================
     const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center' };
     const modalBoxStyle = { background: '#1c1e22', padding: '32px', borderRadius: '16px', width: '420px', border: '1px solid rgba(16, 185, 129, 0.3)', position: 'relative', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' };
     const inputStyle = { width: '100%', padding: '14px', background: '#131517', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', color: 'white', outline: 'none', transition: 'border-color 0.3s' };
@@ -182,10 +186,9 @@ const Users = () => {
                                                 </div>
                                             </td>
                                             
-                                            {/* Cột Tổ chức (Chỉ Super Admin mới xem và quan tâm) */}
                                             {isSuperAdmin && (
                                                 <td style={{ padding: '18px 10px', color: '#e2e8f0' }}>
-                                                    {u.tenant_name || `Tenant #${u.tenant_id}`}
+                                                    {isRootAdmin ? 'Hệ thống (System)' : (u.tenant_name || `Tenant #${u.tenant_id}`)}
                                                 </td>
                                             )}
 
@@ -215,7 +218,8 @@ const Users = () => {
                                                         <KeyRound size={16} /> Đổi MK
                                                     </button>
 
-                                                    {(!isSelf && !isRootAdmin) && (
+                                                    {/* FIX LỖI: Super Admin có thể xóa bất kỳ ai trừ chính mình. Giám đốc chỉ xóa nhân viên của mình */}
+                                                    {(!isSelf && (isSuperAdmin || !isRootAdmin)) && (
                                                         <button 
                                                             onClick={() => handleDeleteUser(u.id, u.email)}
                                                             style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
@@ -257,26 +261,19 @@ const Users = () => {
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Mật khẩu</label>
                                 <input type="password" required value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} style={inputStyle} />
                             </div>
-                            <div style={{ marginBottom: '25px' }}>
+                            <div style={{ marginBottom: '20px' }}>
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Cấp bậc (Role)</label>
                                 <select 
                                     value={newUser.role_in_tenant} 
-                                    onChange={(e) => setNewUser({
-                                        ...newUser, 
-                                        role_in_tenant: e.target.value,
-                                        role: e.target.value === 'admin' ? 'admin' : 'user'
-                                    })} 
+                                    onChange={(e) => setNewUser({...newUser, role_in_tenant: e.target.value})} 
                                     style={{ ...inputStyle, cursor: 'pointer', appearance: 'none' }}
                                 >
-                                    {/* MENU CHO SUPER ADMIN */}
                                     {isSuperAdmin && (
                                         <>
                                             <option value="tenant_admin">Giám đốc (Tạo Công ty mới)</option>
                                             <option value="admin">Quản trị viên Hệ thống (Super Admin)</option>
                                         </>
                                     )}
-
-                                    {/* MENU CHO GIÁM ĐỐC */}
                                     {isTenantAdmin && (
                                         <>
                                             <option value="viewer">Tài xế / Người giám sát (Chỉ xem)</option>
@@ -285,6 +282,21 @@ const Users = () => {
                                     )}
                                 </select>
                             </div>
+
+                            {/* MỚI: FORM HIỆN RA KHI SUPER ADMIN CHỌN TẠO GIÁM ĐỐC */}
+                            {isSuperAdmin && newUser.role_in_tenant === 'tenant_admin' && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px', marginBottom: '25px', background: 'rgba(16, 185, 129, 0.05)', padding: '15px', borderRadius: '10px', border: '1px dashed rgba(16, 185, 129, 0.2)' }}>
+                                    <div>
+                                        <label style={{ display: 'block', color: '#10b981', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '600' }}>Tên Tổ chức (Công ty)</label>
+                                        <input type="text" required placeholder="VD: Vận tải Hải Vân" value={newUser.tenant_name || ''} onChange={(e) => setNewUser({...newUser, tenant_name: e.target.value})} style={{...inputStyle, padding: '10px'}} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', color: '#10b981', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '600' }}>Max Devices</label>
+                                        <input type="number" required min="1" value={newUser.max_devices || 5} onChange={(e) => setNewUser({...newUser, max_devices: parseInt(e.target.value)})} style={{...inputStyle, padding: '10px'}} />
+                                    </div>
+                                </div>
+                            )}
+
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                                 <button type="button" onClick={() => setIsAddModalOpen(false)} style={{ background: 'transparent', color: '#8b8d93', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600' }}>Hủy</button>
                                 <button type="submit" style={{ background: '#10b981', color: '#131517', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700' }}>Tạo tài khoản</button>
@@ -301,11 +313,7 @@ const Users = () => {
                         <button onClick={() => setIsPassModalOpen(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer' }}>
                             <X size={24} />
                         </button>
-                        
-                        <h2 style={{ color: '#ffffff', marginBottom: '25px', fontSize: '1.4rem' }}>
-                            Đổi <span style={{ color: '#10b981' }}>Mật Khẩu</span>
-                        </h2>
-                        
+                        <h2 style={{ color: '#ffffff', marginBottom: '25px', fontSize: '1.4rem' }}>Đổi <span style={{ color: '#10b981' }}>Mật Khẩu</span></h2>
                         <form onSubmit={handleChangePassword}>
                             <div style={{ marginBottom: '25px' }}>
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Mật khẩu mới</label>
