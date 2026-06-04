@@ -201,30 +201,33 @@ def send_device_command(
 # ==========================================
 @router.post("/api/devices", response_model=DeviceResponse)
 def create_device(device: DeviceCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # 1. Bức tường lửa gói cước: Kiểm tra giới hạn thiết bị
+    # 1. Kiểm tra giới hạn thiết bị
     tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
     
     if tenant and tenant.max_devices > 0:
-        # Đếm số thiết bị hiện tại của công ty này
         current_count = db.query(Device).filter(Device.tenant_id == current_user.tenant_id).count()
-        
         if current_count >= tenant.max_devices:
             raise HTTPException(
                 status_code=403, 
                 detail=f"Tổ chức của bạn đã đạt giới hạn tối đa ({tenant.max_devices} thiết bị). Vui lòng nâng cấp gói cước!"
             )
             
-    # 2. Kiểm tra trùng lặp (Logic cũ)
+    # 2. Kiểm tra trùng lặp
     db_device = db.query(Device).filter(Device.device_id == device.device_id).first()
     if db_device:
         raise HTTPException(status_code=400, detail="Mã thiết bị này đã tồn tại trong hệ thống!")
     
-    # 3. Tạo mới (Logic cũ)
+    # 3. Tạo mới
     new_device = Device(**device.model_dump(), tenant_id=current_user.tenant_id)
     db.add(new_device)
     db.commit()
     db.refresh(new_device)
-    return new_device
+    
+    # ĐIỂM SỬA QUAN TRỌNG: Gắn thêm tenant_name ngay lúc trả về để React cập nhật State trơn tru
+    dev_dict = new_device.__dict__.copy()
+    dev_dict["tenant_name"] = tenant.name if tenant else "N/A"
+    
+    return dev_dict
 
 
 # ==========================================
@@ -233,11 +236,12 @@ def create_device(device: DeviceCreate, current_user: User = Depends(get_current
 @router.get("/api/devices", response_model=List[DeviceResponse])
 def get_devices(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role == "admin":
-        devices = db.query(Device).all() # Super Admin: Thấy mọi thứ
+        devices = [] # ĐIỂM SỬA: Super Admin không quản lý thiết bị
     elif current_user.role_in_tenant == "tenant_admin":
-        devices = db.query(Device).filter(Device.tenant_id == current_user.tenant_id).all() # Giám đốc: Thấy mọi xe của cty
+        # Giám đốc: Thấy mọi xe của cty
+        devices = db.query(Device).filter(Device.tenant_id == current_user.tenant_id).all() 
     else:
-        # Tài xế (Viewer): Chỉ thấy xe được giao
+        # Nhân viên/Manager: Chỉ thấy xe được giao
         devices = db.query(Device).filter(
             Device.tenant_id == current_user.tenant_id,
             Device.assigned_user_id == current_user.id
@@ -257,11 +261,11 @@ def get_devices(current_user: User = Depends(get_current_user), db: Session = De
 @router.get("/api/devices/{device_id}", response_model=DeviceResponse)
 def get_device_by_id(device_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role == "admin":
-        db_device = db.query(Device).filter(Device.id == device_id).first()
+        raise HTTPException(status_code=403, detail="Super Admin không quản lý thiết bị!")
     elif current_user.role_in_tenant == "tenant_admin":
         db_device = db.query(Device).filter(Device.id == device_id, Device.tenant_id == current_user.tenant_id).first()
     else:
-        # Tài xế chỉ xem được chi tiết xe của mình
+        # Nhân sự chỉ xem được xe của mình
         db_device = db.query(Device).filter(
             Device.id == device_id, 
             Device.tenant_id == current_user.tenant_id,
@@ -270,7 +274,12 @@ def get_device_by_id(device_id: int, current_user: User = Depends(get_current_us
         
     if not db_device:
         raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị hoặc bạn không có quyền truy cập!")
-    return db_device
+        
+    # ĐIỂM SỬA: Đóng gói lại thành Dictionary giống API GET All
+    dev_dict = db_device.__dict__.copy()
+    dev_dict["tenant_name"] = db_device.tenant.name if db_device.tenant else "N/A"
+    
+    return dev_dict
 
 # ==========================================
 # 4. UPDATE - CẬP NHẬT THÔNG TIN THIẾT BỊ
@@ -357,9 +366,11 @@ def assign_device(device_id: int, assign_data: DeviceAssign, current_user: User 
 @router.get("/api/alarms")
 def get_alarms(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role == "admin":
-        alarms = db.query(Alarm).order_by(Alarm.created_at.desc()).all()
+        alarms = [] # ĐIỂM SỬA: Super Admin không xem cảnh báo của khách
     else:
-        alarms = db.query(Alarm).join(Device).filter(Device.tenant_id == current_user.tenant_id).order_by(Alarm.created_at.desc()).all()
+        alarms = db.query(Alarm).join(Device)\
+            .filter(Device.tenant_id == current_user.tenant_id)\
+            .order_by(Alarm.created_at.desc()).all()
     
     return [{
         "id": a.id,
@@ -424,7 +435,7 @@ async def delete_alarm(
 @router.get("/api/devices/{device_id}/files", response_model=List[RawFileResponse])
 def get_device_files(
     device_id: str,
-    limit: int = 100, # Thêm tham số limit an toàn
+    limit: int = 100, 
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -432,7 +443,9 @@ def get_device_files(
     if not device:
         raise HTTPException(status_code=404, detail="Thiết bị không tồn tại")
     
-    if device.tenant_id != current_user.tenant_id and current_user.role != "admin":
+    # ĐIỂM SỬA QUAN TRỌNG: Xóa bỏ điều kiện ưu tiên (current_user.role != "admin")
+    # Giờ đây, nếu ID công ty không khớp, sẽ lập tức bị chặn.
+    if device.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập file của thiết bị này")
 
     logs = db.query(RawDataLog)\

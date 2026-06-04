@@ -13,8 +13,8 @@ const Devices = () => {
     const { user } = useAuth(); // Lấy thông tin user hiện tại
     
     // Quyền hạn: Chỉ Super Admin và Giám đốc mới được thêm/sửa/xóa/giao xe
-    const canManageDevices = user?.role === 'admin' || user?.role_in_tenant === 'tenant_admin';
-
+    const canFullControl = user?.role === 'admin' || user?.role_in_tenant === 'tenant_admin';
+    const canViewDetails = canFullControl || user?.role_in_tenant === 'operator';
     const [devices, setDevices] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -64,7 +64,7 @@ const Devices = () => {
 
     // Lấy danh sách nhân viên để hiện trong Dropdown Giao Xe
     const loadUsers = async () => {
-        if (!canManageDevices) return;
+        if (!canFullControl) return;
         const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         try {
             const res = await fetch("/api/users", {
@@ -279,38 +279,40 @@ const Devices = () => {
                                                 {openMenuId === dev.id && (
                                                     <div style={{ position: 'absolute', right: '30px', top: '15px', background: '#2a2d32', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '5px', width: '160px', zIndex: 10, boxShadow: '0 10px 15px rgba(0,0,0,0.5)' }}>
                                                         
-                                                        {/* CHỈ QUẢN LÝ THẤY NÚT QUẢN LÝ CHI TIẾT VÀ GIAO XE */}
-                                                        {canManageDevices && (
-                                                            <>
-                                                                <button 
-                                                                    onClick={(e) => { 
-                                                                        e.stopPropagation(); 
-                                                                        navigate(`/devices/${dev.device_id}`); 
-                                                                    }}
-                                                                    style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px' }}
-                                                                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                                                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                >
-                                                                    <Settings size={16} /> Quản lý
-                                                                </button>
-
-                                                                <button 
-                                                                    onClick={(e) => { 
-                                                                        e.stopPropagation(); 
-                                                                        setAssigningDevice(dev);
-                                                                        setSelectedUserId(dev.assigned_user_id || ''); // Khôi phục trạng thái cũ
-                                                                        setIsAssignModalOpen(true);
-                                                                        setOpenMenuId(null); 
-                                                                    }}
-                                                                    style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#a855f7', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
-                                                                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                                                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                >
-                                                                    <UserPlus size={16} /> Phân công
-                                                                </button>
-                                                            </>
+                                                        {/* NÚT QUẢN LÝ: Manager và Giám đốc đều thấy */}
+                                                        {canViewDetails && (
+                                                            <button 
+                                                                onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    navigate(`/devices/${dev.device_id}`); 
+                                                                }}
+                                                                style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px' }}
+                                                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                            >
+                                                                <Settings size={16} /> Quản lý
+                                                            </button>
                                                         )}
 
+                                                        {/* NÚT PHÂN CÔNG: Chỉ Giám đốc mới thấy */}
+                                                        {canFullControl && (
+                                                            <button 
+                                                                onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    setAssigningDevice(dev);
+                                                                    setSelectedUserId(dev.assigned_user_id || ''); 
+                                                                    setIsAssignModalOpen(true);
+                                                                    setOpenMenuId(null); 
+                                                                }}
+                                                                style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#a855f7', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
+                                                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                            >
+                                                                <UserPlus size={16} /> Phân công
+                                                            </button>
+                                                        )}
+
+                                                        {/* NÚT BIỂU ĐỒ: Ai cũng thấy (User, Manager, Giám đốc) */}
                                                         <button 
                                                             onClick={(e) => { 
                                                                 e.stopPropagation(); 
@@ -323,8 +325,8 @@ const Devices = () => {
                                                             <LineChart size={16} /> Biểu đồ
                                                         </button>
 
-                                                        {/* CHỈ QUẢN LÝ THẤY NÚT XÓA */}
-                                                        {canManageDevices && (
+                                                        {/* NÚT XÓA: Chỉ Giám đốc mới thấy */}
+                                                        {canFullControl && (
                                                             <button 
                                                                 onClick={(e) => { 
                                                                     e.stopPropagation(); 
@@ -397,7 +399,7 @@ const Devices = () => {
                         </button>
 
                         <h2 style={{ color: '#ffffff', marginBottom: '25px', fontSize: '1.4rem' }}>
-                            Phân Công <span style={{ color: '#a855f7' }}>Tài Xế</span>
+                            Phân Công <span style={{ color: '#a855f7' }}>Phụ Trách</span>
                         </h2>
                         
                         <form onSubmit={handleAssignSubmit}>
@@ -413,9 +415,16 @@ const Devices = () => {
                                     style={{ ...inputStyle, cursor: 'pointer', appearance: 'none' }}
                                 >
                                     <option value="">-- Thu hồi về kho (Không phân công) --</option>
-                                    {usersList.map(u => (
-                                        <option key={u.id} value={u.id}>{u.email} ({u.role_in_tenant})</option>
-                                    ))}
+                                    
+                                    {usersList
+                                        .filter(u => u.role_in_tenant !== 'tenant_admin') 
+                                        .map(u => (
+                                            <option key={u.id} value={u.id}>
+                                                {u.email} - ({u.role_in_tenant === 'operator' ? 'Manager' : 'User'})
+                                            </option>
+                                        ))
+                                    }
+                                    
                                 </select>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>

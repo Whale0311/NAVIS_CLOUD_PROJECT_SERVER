@@ -298,9 +298,14 @@ const MapPage = () => {
                     const isOnline = checkIsOnline(dev.last_seen);
                     const isSelected = selectedDevice?.device_id === dev.device_id;
 
-                    // Bỏ qua telemetryData, luôn tin tưởng vào vị trí đã lưu trong dev
                     const lat = dev.latitude;
                     const lon = dev.longitude;
+
+                    // 🚨 CHỐT CHẶN AN TOÀN: Nếu thiết bị mới chưa có tọa độ (bị null hoặc undefined), 
+                    // bỏ qua không vẽ Marker để bảo vệ bản đồ khỏi crash.
+                    if (lat == null || lon == null) {
+                        return null; 
+                    }
 
                     return (
                         <Marker 

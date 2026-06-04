@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from app.core.database import get_db
 from app.models.schema import User, Tenant
 from app.core.security import get_password_hash, verify_password, create_access_token, SECRET_KEY, ALGORITHM
@@ -122,9 +123,13 @@ def require_tenant_admin(current_user: User = Depends(get_current_user)):
 @router.get("/api/users")
 def get_users(admin: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
     if admin.role == "admin": 
-        results = db.query(User, Tenant).outerjoin(Tenant, User.tenant_id == Tenant.id).all()
+        # Super Admin CHỈ thấy Super Admin khác và Giám đốc công ty (tenant_admin)
+        results = db.query(User, Tenant).outerjoin(Tenant, User.tenant_id == Tenant.id)\
+            .filter(or_(User.role == "admin", User.role_in_tenant == "tenant_admin")).all()
     else:
-        results = db.query(User, Tenant).outerjoin(Tenant, User.tenant_id == Tenant.id).filter(User.tenant_id == admin.tenant_id).all()
+        # Giám đốc thấy tất cả nhân viên trong công ty mình
+        results = db.query(User, Tenant).outerjoin(Tenant, User.tenant_id == Tenant.id)\
+            .filter(User.tenant_id == admin.tenant_id).all()
     
     final_list = []
     for u, t in results:
