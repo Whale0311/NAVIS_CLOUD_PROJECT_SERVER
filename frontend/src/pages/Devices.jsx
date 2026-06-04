@@ -4,32 +4,29 @@ import { useNavigate } from 'react-router-dom';
 import { HardDrive, LineChart, Trash2, X, Plus, Search, Settings, MoreVertical, UserPlus } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { useAuth } from '../context/AuthContext'; // IMPORT BỘ XỬ LÝ QUYỀN
+import { useAuth } from '../context/AuthContext';
 
 const API_URL = "/api/devices";
 
 const Devices = () => {
     const navigate = useNavigate();
-    const { user } = useAuth(); // Lấy thông tin user hiện tại
+    const { user } = useAuth();
     
-    // Quyền hạn: Chỉ Super Admin và Giám đốc mới được thêm/sửa/xóa/giao xe
-    const canFullControl = user?.role === 'admin' || user?.role_in_tenant === 'tenant_admin';
-    const canViewDetails = canFullControl || user?.role_in_tenant === 'operator';
+    // ĐÃ ĐƠN GIẢN HÓA QUYỀN HẠN: Chỉ duy nhất Giám đốc mới có quyền thao tác thiết bị
+    const isTenantAdmin = user?.role_in_tenant === 'tenant_admin';
+
     const [devices, setDevices] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [openMenuId, setOpenMenuId] = useState(null);
     
-    // State cho Form thêm mới
     const [newDevice, setNewDevice] = useState({
         device_id: '',
         device_type: 'UBX',
         site_id: ''
     });
 
-    // ==========================================
     // STATE CHO TÍNH NĂNG GIAO XE (ASSIGN)
-    // ==========================================
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [assigningDevice, setAssigningDevice] = useState(null);
     const [usersList, setUsersList] = useState([]);
@@ -41,9 +38,7 @@ const Devices = () => {
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
-    // ==========================================
     // API CALLS
-    // ==========================================
     const loadDevices = async () => {
         const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         try {
@@ -62,9 +57,9 @@ const Devices = () => {
         }
     };
 
-    // Lấy danh sách nhân viên để hiện trong Dropdown Giao Xe
+    // Lấy danh sách nhân viên (Chỉ gọi nếu là Giám đốc)
     const loadUsers = async () => {
-        if (!canFullControl) return;
+        if (!isTenantAdmin) return;
         const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         try {
             const res = await fetch("/api/users", {
@@ -79,12 +74,10 @@ const Devices = () => {
 
     useEffect(() => {
         loadDevices();
-        if (canManageDevices) loadUsers();
-    }, [canManageDevices]);
+        if (isTenantAdmin) loadUsers();
+    }, [isTenantAdmin]);
 
-    // ==========================================
     // HANDLERS
-    // ==========================================
     const handleAddSubmit = async (e) => {
         e.preventDefault();
         const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
@@ -136,13 +129,12 @@ const Devices = () => {
         } catch (error) { toast.error("Lỗi kết nối Server"); }
     };
 
-    // Hàm Xử Lý Phân Công Xe
     const handleAssignSubmit = async (e) => {
         e.preventDefault();
         const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         try {
             const payload = {
-                user_id: selectedUserId ? parseInt(selectedUserId) : null // Trả về null nếu thu hồi
+                user_id: selectedUserId ? parseInt(selectedUserId) : null
             };
 
             const res = await fetch(`${API_URL}/${assigningDevice.id}/assign`, {
@@ -169,9 +161,7 @@ const Devices = () => {
         dev.device_id && dev.device_id.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // ==========================================
     // INLINE STYLES TÁI SỬ DỤNG
-    // ==========================================
     const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center' };
     const modalBoxStyle = { background: '#1c1e22', padding: '32px', borderRadius: '16px', width: '420px', border: '1px solid rgba(16, 185, 129, 0.3)', position: 'relative', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' };
     const inputStyle = { width: '100%', padding: '14px', background: '#131517', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', color: 'white', outline: 'none', transition: 'border-color 0.3s' };
@@ -205,8 +195,8 @@ const Devices = () => {
                                 />
                             </div>
 
-                            {/* CHỈ QUẢN LÝ MỚI THẤY NÚT THÊM */}
-                            {canManageDevices && (
+                            {/* CHỈ GIÁM ĐỐC MỚI THẤY NÚT THÊM */}
+                            {isTenantAdmin && (
                                 <button 
                                     onClick={() => setIsModalOpen(true)}
                                     style={{ background: '#10b981', color: '#131517', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}
@@ -262,7 +252,6 @@ const Devices = () => {
                                                 })()}
                                             </td>
                                             <td style={{ padding: '18px 10px', color: '#e2e8f0', fontSize: '0.95rem' }}>
-                                                {/* Hiển thị tên Tenant thay vì owner_email */}
                                                 {dev.tenant_name || 'N/A'}
                                             </td>
                                             <td style={{ padding: '18px 10px', textAlign: 'center', position: 'relative' }}>
@@ -279,40 +268,39 @@ const Devices = () => {
                                                 {openMenuId === dev.id && (
                                                     <div style={{ position: 'absolute', right: '30px', top: '15px', background: '#2a2d32', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '5px', width: '160px', zIndex: 10, boxShadow: '0 10px 15px rgba(0,0,0,0.5)' }}>
                                                         
-                                                        {/* NÚT QUẢN LÝ: Manager và Giám đốc đều thấy */}
-                                                        {canViewDetails && (
-                                                            <button 
-                                                                onClick={(e) => { 
-                                                                    e.stopPropagation(); 
-                                                                    navigate(`/devices/${dev.device_id}`); 
-                                                                }}
-                                                                style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px' }}
-                                                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                            >
-                                                                <Settings size={16} /> Quản lý
-                                                            </button>
+                                                        {/* CÁC NÚT DÀNH CHO GIÁM ĐỐC */}
+                                                        {isTenantAdmin && (
+                                                            <>
+                                                                <button 
+                                                                    onClick={(e) => { 
+                                                                        e.stopPropagation(); 
+                                                                        navigate(`/devices/${dev.device_id}`); 
+                                                                    }}
+                                                                    style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px' }}
+                                                                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                >
+                                                                    <Settings size={16} /> Quản lý
+                                                                </button>
+
+                                                                <button 
+                                                                    onClick={(e) => { 
+                                                                        e.stopPropagation(); 
+                                                                        setAssigningDevice(dev);
+                                                                        setSelectedUserId(dev.assigned_user_id || ''); 
+                                                                        setIsAssignModalOpen(true);
+                                                                        setOpenMenuId(null); 
+                                                                    }}
+                                                                    style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#a855f7', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
+                                                                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                >
+                                                                    <UserPlus size={16} /> Phân công
+                                                                </button>
+                                                            </>
                                                         )}
 
-                                                        {/* NÚT PHÂN CÔNG: Chỉ Giám đốc mới thấy */}
-                                                        {canFullControl && (
-                                                            <button 
-                                                                onClick={(e) => { 
-                                                                    e.stopPropagation(); 
-                                                                    setAssigningDevice(dev);
-                                                                    setSelectedUserId(dev.assigned_user_id || ''); 
-                                                                    setIsAssignModalOpen(true);
-                                                                    setOpenMenuId(null); 
-                                                                }}
-                                                                style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#a855f7', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
-                                                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                            >
-                                                                <UserPlus size={16} /> Phân công
-                                                            </button>
-                                                        )}
-
-                                                        {/* NÚT BIỂU ĐỒ: Ai cũng thấy (User, Manager, Giám đốc) */}
+                                                        {/* NÚT BIỂU ĐỒ: Ai cũng thấy */}
                                                         <button 
                                                             onClick={(e) => { 
                                                                 e.stopPropagation(); 
@@ -325,8 +313,8 @@ const Devices = () => {
                                                             <LineChart size={16} /> Biểu đồ
                                                         </button>
 
-                                                        {/* NÚT XÓA: Chỉ Giám đốc mới thấy */}
-                                                        {canFullControl && (
+                                                        {/* NÚT XÓA: Dành cho Giám đốc */}
+                                                        {isTenantAdmin && (
                                                             <button 
                                                                 onClick={(e) => { 
                                                                     e.stopPropagation(); 
@@ -416,11 +404,12 @@ const Devices = () => {
                                 >
                                     <option value="">-- Thu hồi về kho (Không phân công) --</option>
                                     
+                                    {/* ĐÃ LỌC BỎ CẤP BẬC ADMIN VÀ GIÁM ĐỐC */}
                                     {usersList
-                                        .filter(u => u.role_in_tenant !== 'tenant_admin') 
+                                        .filter(u => u.role_in_tenant !== 'tenant_admin' && u.role !== 'admin') 
                                         .map(u => (
                                             <option key={u.id} value={u.id}>
-                                                {u.email} - ({u.role_in_tenant === 'operator' ? 'Manager' : 'User'})
+                                                {u.email} (User)
                                             </option>
                                         ))
                                     }

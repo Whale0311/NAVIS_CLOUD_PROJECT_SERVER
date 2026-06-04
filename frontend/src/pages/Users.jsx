@@ -336,7 +336,7 @@ const Users = () => {
                                     <input 
                                         type="text" 
                                         disabled 
-                                        value="User (Tài xế/Chỉ xem)" 
+                                        value="User (Read Only)" 
                                         style={{ ...inputStyle, background: 'rgba(255,255,255,0.02)', color: '#a3a3a3', cursor: 'not-allowed' }} 
                                     />
                                 )}
