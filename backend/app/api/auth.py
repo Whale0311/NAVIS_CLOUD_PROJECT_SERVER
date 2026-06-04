@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from app.core.database import get_db
 from app.models.schema import User, Tenant
 from app.core.security import get_password_hash, verify_password, create_access_token, SECRET_KEY, ALGORITHM
-from app.schemas import UserCreate, UserLogin, ForgotPassword 
+from app.schemas import UserCreate, UserLogin, ForgotPassword , TenantUpdate
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from pydantic import BaseModel
@@ -55,6 +55,12 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user.email).first()
     if not db_user or not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=401, detail="Email hoặc mật khẩu không chính xác!")
+    
+    # KIỂM TRA TENANT BỊ KHÓA
+    if db_user.tenant_id:
+        tenant = db.query(Tenant).filter(Tenant.id == db_user.tenant_id).first()
+        if tenant and not tenant.is_active:
+            raise HTTPException(status_code=403, detail="Tổ chức của bạn đã bị khóa. Vui lòng liên hệ Quản trị viên!")
     
     access_token = create_access_token(data={
         "sub": db_user.email,

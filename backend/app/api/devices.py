@@ -12,7 +12,7 @@ import jwt
 from app.core.database import get_db
 from app.core.security import SECRET_KEY, ALGORITHM
 from app.models.schema import Device, User, Telemetry, Alarm, RawDataLog, Tenant
-from app.schemas import DeviceCreate, DeviceResponse, TelemetryCreate, TelemetryResponse, RawFileResponse
+from app.schemas import DeviceCreate, DeviceResponse, TelemetryCreate, TelemetryResponse, RawFileResponse, TenantUpdate
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import FileResponse
 from datetime import datetime, timezone 
@@ -229,7 +229,33 @@ def create_device(device: DeviceCreate, current_user: User = Depends(get_current
     
     return dev_dict
 
-
+@router.put("/api/tenants/{tenant_id}")
+def update_tenant_status(
+    tenant_id: int, 
+    data: TenantUpdate, 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    # 1. Chỉ Super Admin mới có đặc quyền này
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Super Admin mới có quyền cập nhật thông tin Tổ chức!")
+    
+    # 2. Tìm tổ chức trong DB
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Không tìm thấy Tổ chức (Tenant) này!")
+    
+    # 3. Cập nhật dữ liệu
+    tenant.max_devices = data.max_devices
+    tenant.is_active = data.is_active
+    db.commit()
+    
+    return {
+        "message": "Cập nhật Tổ chức thành công",
+        "tenant_id": tenant.id,
+        "max_devices": tenant.max_devices,
+        "is_active": tenant.is_active
+    }
 # ==========================================
 # 2. READ ALL - LẤY DANH SÁCH THIẾT BỊ
 # ==========================================

@@ -13,7 +13,9 @@ class TenantBase(BaseModel):
 
 class TenantCreate(TenantBase):
     pass
-
+class TenantUpdate(BaseModel):
+    max_devices: int
+    is_active: bool
 class TenantResponse(TenantBase):
     id: int
     created_at: datetime
@@ -77,6 +79,7 @@ class DeviceResponse(DeviceBase):
     
     # THAY ĐỔI LỚN NHẤT: Bỏ owner_id, thay bằng tenant_id
     tenant_id: Optional[int] = None
+    tenant_name: Optional[str] = None
     
     class Config:
         from_attributes = True

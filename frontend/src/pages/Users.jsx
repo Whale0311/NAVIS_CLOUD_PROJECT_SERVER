@@ -1,6 +1,6 @@
 // src/pages/Users.jsx
 import React, { useState, useEffect } from 'react';
-import { Users as UsersIcon, UserPlus, KeyRound, Trash2, X, ShieldCheck, User, Briefcase } from 'lucide-react';
+import { Users as UsersIcon, UserPlus, KeyRound, Trash2, X, ShieldCheck, User, Briefcase, Settings } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,15 +19,25 @@ const Users = () => {
     const [newUser, setNewUser] = useState({ 
         email: '', 
         password: '', 
-        role: isSuperAdmin ? 'admin' : 'user', // Mặc định role hệ thống
+        role: isSuperAdmin ? 'admin' : 'user',
         role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer', 
-        tenant_name: '', // MỚI: Tên công ty
-        max_devices: 5   // MỚI: Giới hạn thiết bị
+        tenant_name: '', 
+        max_devices: 5  
     });
 
     const [isPassModalOpen, setIsPassModalOpen] = useState(false);
     const [targetUserId, setTargetUserId] = useState(null);
     const [newPassword, setNewPassword] = useState('');
+
+    // ==========================================
+    // MỚI: QUẢN LÝ MODAL CẤU HÌNH TENANT (SUPER ADMIN)
+    // ==========================================
+    const [isTenantModalOpen, setIsTenantModalOpen] = useState(false);
+    const [editTenantData, setEditTenantData] = useState({
+        tenant_id: null,
+        max_devices: 5,
+        is_active: true
+    });
 
     useEffect(() => {
         fetchUsers();
@@ -52,19 +62,16 @@ const Users = () => {
         e.preventDefault();
         const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
         
-        // CHỐT AN TOÀN: Nếu là Super Admin mà state bị kẹt ở viewer, ép nó về tenant_admin
         let finalRoleInTenant = newUser.role_in_tenant;
-        if (isSuperAdmin && finalRoleInTenant === 'viewer') {
-            finalRoleInTenant = 'tenant_admin';
-        }
+        if (isSuperAdmin && finalRoleInTenant === 'viewer') finalRoleInTenant = 'tenant_admin';
+        // Nếu là Giám đốc tạo tài khoản, ÉP BUỘC quyền là viewer (User)
+        if (isTenantAdmin) finalRoleInTenant = 'viewer'; 
 
-        // Tạo payload linh hoạt dựa trên cấp bậc
         const payload = {
             email: newUser.email,
             password: newUser.password,
             role: finalRoleInTenant === 'admin' ? 'admin' : 'user',
             role_in_tenant: finalRoleInTenant,
-            // CHỈ gửi thông tin Công ty khi tạo Giám đốc
             ...(isSuperAdmin && finalRoleInTenant === 'tenant_admin' && {
                 tenant_name: newUser.tenant_name,
                 max_devices: newUser.max_devices
@@ -131,6 +138,30 @@ const Users = () => {
         } catch (error) { toast.error("Lỗi kết nối Server"); }
     };
 
+    // MỚI: XỬ LÝ CẬP NHẬT TENANT TỪ SUPER ADMIN
+    const handleUpdateTenant = async (e) => {
+        e.preventDefault();
+        const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
+        try {
+            const res = await fetch(`/api/tenants/${editTenantData.tenant_id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ 
+                    max_devices: editTenantData.max_devices, 
+                    is_active: editTenantData.is_active 
+                })
+            });
+            
+            if (res.ok) {
+                setIsTenantModalOpen(false);
+                toast.success("Đã cập nhật thông số Tổ chức thành công!");
+            } else {
+                const err = await res.json();
+                toast.error("Lỗi: " + (err.detail || "Không thể cập nhật"));
+            }
+        } catch (error) { toast.error("Lỗi kết nối Server"); }
+    };
+
     // STYLES
     const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center' };
     const modalBoxStyle = { background: '#1c1e22', padding: '32px', borderRadius: '16px', width: '420px', border: '1px solid rgba(16, 185, 129, 0.3)', position: 'relative', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' };
@@ -155,12 +186,9 @@ const Users = () => {
                         <button 
                             onClick={() => {
                                 setNewUser({ 
-                                    email: '', 
-                                    password: '', 
-                                    role: isSuperAdmin ? 'admin' : 'user', 
+                                    email: '', password: '', role: isSuperAdmin ? 'admin' : 'user', 
                                     role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer', 
-                                    tenant_name: '', 
-                                    max_devices: 5 
+                                    tenant_name: '', max_devices: 5 
                                 });
                                 setIsAddModalOpen(true);
                             }}
@@ -219,7 +247,7 @@ const Users = () => {
                                                     </span>
                                                 ) : (
                                                     <span style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.2)', padding: '6px 12px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                                        <User size={16} /> {u.role_in_tenant === 'operator' ? 'Manager' : 'User'}
+                                                        <User size={16} /> User
                                                     </span>
                                                 )}
                                             </td>
@@ -233,8 +261,22 @@ const Users = () => {
                                                     >
                                                         <KeyRound size={16} /> Đổi MK
                                                     </button>
+                                                    
+                                                    {/* MỚI: NÚT CẤU HÌNH DÀNH CHO SUPER ADMIN */}
+                                                    {isSuperAdmin && u.role_in_tenant === 'tenant_admin' && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditTenantData({ tenant_id: u.tenant_id, max_devices: 5, is_active: true }); // Mặc định mở ra
+                                                                setIsTenantModalOpen(true);
+                                                            }}
+                                                            style={{ background: 'rgba(168, 85, 247, 0.1)', border: 'none', color: '#a855f7', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
+                                                            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(168, 85, 247, 0.2)'; }}
+                                                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)'; }}
+                                                        >
+                                                            <Settings size={16} /> Cấu hình
+                                                        </button>
+                                                    )}
 
-                                                    {/* FIX LỖI: Super Admin có thể xóa bất kỳ ai trừ chính mình. Giám đốc chỉ xóa nhân viên của mình */}
                                                     {(!isSelf && (isSuperAdmin || !isRootAdmin)) && (
                                                         <button 
                                                             onClick={() => handleDeleteUser(u.id, u.email)}
@@ -277,37 +319,38 @@ const Users = () => {
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Mật khẩu</label>
                                 <input type="password" required value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} style={inputStyle} />
                             </div>
+                            
                             <div style={{ marginBottom: '20px' }}>
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Cấp bậc (Role)</label>
-                                <select 
-                                    value={newUser.role_in_tenant} 
-                                    onChange={(e) => setNewUser({...newUser, role_in_tenant: e.target.value})} 
-                                    style={{ ...inputStyle, cursor: 'pointer', appearance: 'none' }}
-                                >
-                                    {isSuperAdmin && (
-                                        <>
-                                            <option value="tenant_admin">Giám đốc (Tạo Công ty mới)</option>
-                                            <option value="admin">Quản trị viên Hệ thống (Super Admin)</option>
-                                        </>
-                                    )}
-                                    {isTenantAdmin && (
-                                        <>
-                                            <option value="viewer">User (Chỉ xem)</option>
-                                            <option value="operator">Manager (Điều khiển thiết bị)</option>
-                                        </>
-                                    )}
-                                </select>
+                                {/* SỬA LẠI LOGIC CHỌN QUYỀN */}
+                                {isSuperAdmin ? (
+                                    <select 
+                                        value={newUser.role_in_tenant} 
+                                        onChange={(e) => setNewUser({...newUser, role_in_tenant: e.target.value})} 
+                                        style={{ ...inputStyle, cursor: 'pointer', appearance: 'none' }}
+                                    >
+                                        <option value="tenant_admin">Giám đốc (Tạo Công ty mới)</option>
+                                        <option value="admin">Quản trị viên Hệ thống (Super Admin)</option>
+                                    </select>
+                                ) : (
+                                    <input 
+                                        type="text" 
+                                        disabled 
+                                        value="User (Tài xế/Chỉ xem)" 
+                                        style={{ ...inputStyle, background: 'rgba(255,255,255,0.02)', color: '#a3a3a3', cursor: 'not-allowed' }} 
+                                    />
+                                )}
                             </div>
 
-                            {/* MỚI: FORM HIỆN RA KHI SUPER ADMIN CHỌN TẠO GIÁM ĐỐC */}
+                            {/* FORM HIỆN RA KHI SUPER ADMIN CHỌN TẠO GIÁM ĐỐC */}
                             {isSuperAdmin && newUser.role_in_tenant === 'tenant_admin' && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px', marginBottom: '25px', background: 'rgba(16, 185, 129, 0.05)', padding: '15px', borderRadius: '10px', border: '1px dashed rgba(16, 185, 129, 0.2)' }}>
                                     <div>
-                                        <label style={{ display: 'block', color: '#10b981', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '600' }}>Tên Tổ chức (Công ty)</label>
+                                        <label style={{ display: 'block', color: '#10b981', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '600' }}>Tên Tổ chức</label>
                                         <input type="text" required placeholder="VD: Vận tải Hải Vân" value={newUser.tenant_name || ''} onChange={(e) => setNewUser({...newUser, tenant_name: e.target.value})} style={{...inputStyle, padding: '10px'}} />
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', color: '#10b981', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '600' }}>Max Devices</label>
+                                        <label style={{ display: 'block', color: '#10b981', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '600' }}>Số thiết bị</label>
                                         <input type="number" required min="1" value={newUser.max_devices || 5} onChange={(e) => setNewUser({...newUser, max_devices: parseInt(e.target.value)})} style={{...inputStyle, padding: '10px'}} />
                                     </div>
                                 </div>
@@ -316,6 +359,46 @@ const Users = () => {
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                                 <button type="button" onClick={() => setIsAddModalOpen(false)} style={{ background: 'transparent', color: '#8b8d93', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600' }}>Hủy</button>
                                 <button type="submit" style={{ background: '#10b981', color: '#131517', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700' }}>Tạo tài khoản</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MỚI: MODAL CẤU HÌNH TENANT DÀNH CHO SUPER ADMIN */}
+            {isTenantModalOpen && (
+                <div style={modalOverlayStyle}>
+                    <div style={modalBoxStyle}>
+                        <button onClick={() => setIsTenantModalOpen(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer' }}>
+                            <X size={24} />
+                        </button>
+                        <h2 style={{ color: '#ffffff', marginBottom: '25px', fontSize: '1.4rem' }}>Cấu hình <span style={{ color: '#a855f7' }}>Tổ Chức</span></h2>
+                        <form onSubmit={handleUpdateTenant}>
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Giới hạn số lượng Thiết bị</label>
+                                <input 
+                                    type="number" 
+                                    required 
+                                    min="1" 
+                                    value={editTenantData.max_devices} 
+                                    onChange={(e) => setEditTenantData({...editTenantData, max_devices: parseInt(e.target.value)})} 
+                                    style={inputStyle} 
+                                />
+                            </div>
+                            <div style={{ marginBottom: '30px' }}>
+                                <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Trạng thái hoạt động</label>
+                                <select 
+                                    value={editTenantData.is_active ? "true" : "false"}
+                                    onChange={(e) => setEditTenantData({...editTenantData, is_active: e.target.value === "true"})}
+                                    style={{ ...inputStyle, cursor: 'pointer', appearance: 'none', color: editTenantData.is_active ? '#10b981' : '#ef4444' }}
+                                >
+                                    <option value="true">🟢 Đang hoạt động</option>
+                                    <option value="false">🔴 Khóa tài khoản (Đình chỉ)</option>
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                <button type="button" onClick={() => setIsTenantModalOpen(false)} style={{ background: 'transparent', color: '#8b8d93', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600' }}>Hủy</button>
+                                <button type="submit" style={{ background: '#a855f7', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700' }}>Lưu cấu hình</button>
                             </div>
                         </form>
                     </div>
