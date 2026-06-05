@@ -7,6 +7,7 @@ import paho.mqtt.publish as mqtt_publish
 import uuid
 import json
 import os
+import psutil
 from sqlalchemy import func
 from typing import List
 import jwt
@@ -358,17 +359,33 @@ def get_superadmin_stats(current_user: User = Depends(get_current_user), db: Ses
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Chỉ Super Admin mới có quyền xem thông tin này!")
 
-    # 1. Thống kê Tenant (Tổ chức)
+    # ==========================================
+    # 1. THỐNG KÊ KPI TỪ DATABASE THẬT
+    # ==========================================
     tenants = db.query(Tenant).all()
     total_tenants = len(tenants)
     active_tenants = sum(1 for t in tenants if t.is_active)
-    max_devices_system = sum(t.max_devices for t in tenants) # Tổng dung lượng hệ thống đã cấp
-
-    # 2. Thống kê Thiết bị & User
+    
+    # Xử lý an toàn: Nếu tenant.max_devices bị None thì coi như 0
+    max_devices_system = sum((t.max_devices or 0) for t in tenants)
+    
     total_devices = db.query(Device).count()
     total_users = db.query(User).count()
 
-    # 3. Dữ liệu Biểu đồ tròn (Tỷ trọng thiết bị theo Tổ chức)
+    # ==========================================
+    # 2. ĐỌC THÔNG SỐ SERVER THẬT (RAM & CPU)
+    # ==========================================
+    vm = psutil.virtual_memory()
+    ram_total = round(vm.total / (1024 ** 3), 1)
+    ram_used = round(vm.used / (1024 ** 3), 1)
+    ram_string = f"{ram_used}GB / {ram_total}GB"
+
+    cpu_usage = psutil.cpu_percent(interval=None)
+    cpu_string = f"{cpu_usage}%"
+
+    # ==========================================
+    # 3. DỮ LIỆU BIỂU ĐỒ TRÒN (PHÂN BỔ THIẾT BỊ)
+    # ==========================================
     distribution = []
     for t in tenants:
         dev_count = db.query(Device).filter(Device.tenant_id == t.id).count()
@@ -378,22 +395,42 @@ def get_superadmin_stats(current_user: User = Depends(get_current_user), db: Ses
                 "count": dev_count
             })
 
-    # 4. Dữ liệu Biểu đồ cột (Mock data tăng trưởng - Sau này bạn có thể query theo created_at)
-    monthly_growth = [
-        {"month": "Tháng 1", "devices": int(total_devices * 0.1)},
-        {"month": "Tháng 2", "devices": int(total_devices * 0.2)},
-        {"month": "Tháng 3", "devices": int(total_devices * 0.4)},
-        {"month": "Tháng 4", "devices": int(total_devices * 0.6)},
-        {"month": "Tháng 5", "devices": int(total_devices * 0.8)},
-        {"month": "Tháng 6", "devices": total_devices},
-    ]
+    # ==========================================
+    # 4. DỮ LIỆU BIỂU ĐỒ CỘT (TĂNG TRƯỞNG THỰC TẾ 6 THÁNG QUA)
+    # ==========================================
+    now = datetime.now()
+    monthly_data = {}
+    months_order = []
+
+    # Thuật toán tạo khung 6 tháng gần nhất theo thời gian thực (vd: "T1/2026")
+    for i in range(5, -1, -1):
+        m = now.month - i
+        y = now.year
+        if m <= 0:
+            m += 12
+            y -= 1
+        label = f"T{m}/{y}"
+        months_order.append(label)
+        monthly_data[label] = 0
+
+    # Lấy thời gian tạo của tất cả thiết bị để phân loại vào từng tháng
+    all_devices = db.query(Device.created_at).all()
+    for dev in all_devices:
+        if dev.created_at: # Đề phòng data cũ không có thời gian tạo
+            m_label = f"T{dev.created_at.month}/{dev.created_at.year}"
+            # Chỉ cộng dồn nếu tháng đó nằm trong khung 6 tháng gần nhất
+            if m_label in monthly_data:
+                monthly_data[m_label] += 1
+
+    # Đóng gói dữ liệu để gửi xuống React
+    monthly_growth = [{"month": label, "devices": monthly_data[label]} for label in months_order]
 
     return {
         "kpi": {
             "tenants": {"total": total_tenants, "active": active_tenants},
             "devices": {"used": total_devices, "capacity": max_devices_system},
             "users": {"total": total_users},
-            "server": {"status": "Online", "cpu": "12%", "ram": "2.4GB / 4GB"}
+            "server": {"status": "Online", "cpu": cpu_string, "ram": ram_string}
         },
         "charts": {
             "distribution": distribution,

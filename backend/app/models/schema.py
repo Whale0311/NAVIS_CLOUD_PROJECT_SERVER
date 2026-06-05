@@ -67,7 +67,7 @@ class Device(Base):
     is_active = Column(Boolean, default=True)
     last_seen = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     site_id = Column(String, default="default_site", index=True)
-    
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     # MULTI-TENANT: Thiết bị là TÀI SẢN CỦA CÔNG TY (Tenant)
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=True)
     
