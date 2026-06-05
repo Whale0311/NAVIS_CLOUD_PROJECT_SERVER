@@ -5,27 +5,30 @@
 ## 📋 Tổng Quan
 
 Frontend của Navis Cloud cung cấp:
+- **🏢 Multi-Tenant Dashboard**: Giao diện riêng biệt cho mỗi Tenant (Công ty)
+- **🔐 Role-Based UI**: Hiển thị menu và tính năng theo vai trò (SuperAdmin, Tenant Admin, Operator, Viewer)
 - **📊 Dashboard**: Bảng điều khiển tổng quan hệ thống, metrics chính
 - **🚀 Device Management**: Theo dõi, quản lý, control các thiết bị IoT kết nối
 - **📈 Real-time Charts**: Trực quan hóa dữ liệu telemetry với Chart.js & Plotly
 - **🗺️ Interactive Maps**: Hiển thị vị trí địa lý các thiết bị trên bản đồ (Leaflet)
 - **🚨 Alarm Management**: Quản lý, theo dõi, phân loại các cảnh báo/sự cố
-- **👥 User Management**: Kiểm soát truy cập, quản lý tài khoản người dùng
+- **👥 User Management**: Kiểm soát truy cập, quản lý tài khoản người dùng (Tenant Admin)
 - **🔐 Authentication**: Hệ thống đăng nhập bảo mật với JWT tokens
-- **📱 Responsive Design**: Tối ưu cho desktop, tablet, mobile
 
 ## ✨ Tính Năng Chính
 
 | Tính năng | Mô tả |
 |----------|--------|
 | ⚡ **Vite** | Công cụ build siêu nhanh, HMR (Hot Module Replacement) |
+| 🏢 **Multi-Tenant Support** | Giao diện riêng cho mỗi Tenant, tenant isolation |
 | ⚛️ **React 19** | Thư viện UI hiện đại với hooks & components |
+| 🔐 **Role-Based UI** | Render menu/tính năng dựa trên role (SuperAdmin, Tenant Admin, Operator, Viewer) |
 | 📊 **Chart.js** | Biểu đồ động, real-time data visualization |
 | 🗺️ **Leaflet** | Bản đồ tương tác, marker, popup |
 | 📈 **Plotly** | Biểu đồ nâng cao (3D, heatmap, v.v) |
 | 🎨 **Modern CSS** | CSS3, Flexbox, Grid, animations |
 | 🎯 **ESLint** | Kiểm tra chất lượng code tự động |
-| 🔗 **React Router** | Client-side routing |
+| 🔗 **React Router** | Client-side routing với ProtectedRoute |
 | 🔔 **Toast Notifications** | React-toastify alerts |
 | 📡 **REST API Integration** | Kết nối backend qua Axios/Fetch |
 
@@ -194,11 +197,19 @@ frontend/
 - System health status
 - Quick access widgets
 
-### 🚀 Devices (`/devices`)
-- List of all IoT devices
+### 🏢 Tenants (`/tenants`) - SuperAdmin Only
+- List of all Tenants (Companies)
+- Tenant status (active/inactive)
+- Tenant device limits management
+- Tenant subscription info
+- Enable/disable tenant actions
+
+### 🚀 Devices (`/devices`) - Tenant Admin & above
+- List of devices (filtered by tenant)
 - Device status indicators
 - Device filtering & search
 - Device actions (edit, delete, detail)
+- Assign device to user/operator
 
 ### 📈 Charts (`/charts`)
 - Real-time data visualization
@@ -230,7 +241,136 @@ frontend/
 - JWT token management
 - Remember me option
 
-## 🔄 Component Architecture
+## � Role-Based UI Rendering (Multi-Tenant)
+
+Frontend tự động render giao diện khác nhau dựa trên role của user:
+
+### User Object Structure
+```javascript
+{
+  id: 1,
+  email: "user@company.com",
+  role: "user",                        // System-level: admin hoặc user
+  tenant_id: 1,                        // Tenant ID
+  role_in_tenant: "tenant_admin",      // Tenant-level: tenant_admin, operator, viewer
+  tenant_name: "Company A"
+}
+```
+
+### Menu Navigation (Sidebar.jsx)
+```javascript
+// Ví dụ từ Sidebar.jsx
+const isSuperAdmin = user?.role === "admin";
+const isTenantAdmin = user?.role_in_tenant === "tenant_admin";
+const isOperator = user?.role_in_tenant === "operator";
+const isViewer = user?.role_in_tenant === "viewer";
+
+// Điều chỉnh menu theo role
+{isSuperAdmin && (
+  <NavLink to="/tenants">
+    👥 Quản lý Tenant
+  </NavLink>
+)}
+
+{(isSuperAdmin || isTenantAdmin) && (
+  <NavLink to="/users">
+    👤 Quản lý User
+  </NavLink>
+)}
+
+{(isSuperAdmin || isTenantAdmin || isOperator) && (
+  <NavLink to="/devices">
+    📱 Device Management
+  </NavLink>
+)}
+
+{(isSuperAdmin || isTenantAdmin || isOperator || isViewer) && (
+  <NavLink to="/charts">
+    📊 Dashboard
+  </NavLink>
+)}
+```
+
+### Protected Routes (App.jsx)
+```javascript
+// Route protection dựa trên role
+const ProtectedRoute = ({ allowedRoles }) => {
+  const { user } = useContext(AuthContext);
+
+  if (allowedRoles) {
+    // Kiểm tra role hệ thống (admin) hoặc role công ty (tenant_admin, operator, viewer)
+    const hasPermission = 
+      allowedRoles.includes(user.role) || 
+      allowedRoles.includes(user.role_in_tenant);
+    
+    if (!hasPermission) {
+      return <Navigate to="/dashboard" />;
+    }
+  }
+
+  return <Outlet />;
+};
+
+// Usage
+<Routes>
+  <Route element={<ProtectedRoute allowedRoles={['admin', 'tenant_admin']} />}>
+    <Route path="/users" element={<Users />} />
+  </Route>
+  <Route element={<ProtectedRoute allowedRoles={['admin', 'tenant_admin', 'operator']} />}>
+    <Route path="/devices" element={<Devices />} />
+  </Route>
+</Routes>
+```
+
+### Permission Matrix (UI)
+```javascript
+// Hàm kiểm tra quyền
+const hasPermission = (action, userRole, userTenantRole) => {
+  const permissions = {
+    // Action: [system-level roles, tenant-level roles]
+    'view_dashboard': [['admin', 'user'], ['tenant_admin', 'operator', 'viewer']],
+    'manage_tenants': [['admin'], []],
+    'manage_users': [['admin'], ['tenant_admin']],
+    'manage_devices': [['admin'], ['tenant_admin']],
+    'control_device': [['admin'], ['tenant_admin', 'operator']],
+    'view_device': [['admin'], ['tenant_admin', 'operator', 'viewer']],
+  };
+
+  const [sysRoles, tenantRoles] = permissions[action] || [[], []];
+  return sysRoles.includes(userRole) || tenantRoles.includes(userTenantRole);
+};
+
+// Usage trong component
+{hasPermission('manage_users', user.role, user.role_in_tenant) && (
+  <button onClick={() => setShowUserModal(true)}>
+    Thêm User
+  </button>
+)}
+```
+
+### Data Isolation by Tenant
+```javascript
+// API calls tự động filter theo tenant (từ JWT token)
+// Backend server confirm tenant_id từ token, không lấy từ frontend
+
+// Frontend không cần lo về security ở layer này
+// Vì backend verify JWT token và filter data
+
+// Ví dụ:
+const getDevices = async () => {
+  // Backend sẽ chỉ trả về device của tenant hiện tại
+  const response = await api.get('/api/devices');
+  return response.data;
+};
+
+// Superadmin sẽ nhận API khác để quản lý Tenant
+const getTenants = async () => {
+  const response = await api.get('/api/tenants');
+  return response.data;
+};
+```
+
+## �🔄 Component Architecture
 
 ### Layout Structure
 ```

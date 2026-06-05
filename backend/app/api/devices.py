@@ -7,6 +7,7 @@ import paho.mqtt.publish as mqtt_publish
 import uuid
 import json
 import os
+from sqlalchemy import func
 from typing import List
 import jwt
 from app.core.database import get_db
@@ -352,7 +353,53 @@ def delete_device(device_id: int, current_user: User = Depends(get_current_user)
     db.commit()
     return {"message": f"Đã xóa thành công thiết bị mang ID {device_id}!"}
 
+@router.get("/api/admin/dashboard-stats")
+def get_superadmin_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ Super Admin mới có quyền xem thông tin này!")
 
+    # 1. Thống kê Tenant (Tổ chức)
+    tenants = db.query(Tenant).all()
+    total_tenants = len(tenants)
+    active_tenants = sum(1 for t in tenants if t.is_active)
+    max_devices_system = sum(t.max_devices for t in tenants) # Tổng dung lượng hệ thống đã cấp
+
+    # 2. Thống kê Thiết bị & User
+    total_devices = db.query(Device).count()
+    total_users = db.query(User).count()
+
+    # 3. Dữ liệu Biểu đồ tròn (Tỷ trọng thiết bị theo Tổ chức)
+    distribution = []
+    for t in tenants:
+        dev_count = db.query(Device).filter(Device.tenant_id == t.id).count()
+        if dev_count > 0:
+            distribution.append({
+                "tenant_name": t.name,
+                "count": dev_count
+            })
+
+    # 4. Dữ liệu Biểu đồ cột (Mock data tăng trưởng - Sau này bạn có thể query theo created_at)
+    monthly_growth = [
+        {"month": "Tháng 1", "devices": int(total_devices * 0.1)},
+        {"month": "Tháng 2", "devices": int(total_devices * 0.2)},
+        {"month": "Tháng 3", "devices": int(total_devices * 0.4)},
+        {"month": "Tháng 4", "devices": int(total_devices * 0.6)},
+        {"month": "Tháng 5", "devices": int(total_devices * 0.8)},
+        {"month": "Tháng 6", "devices": total_devices},
+    ]
+
+    return {
+        "kpi": {
+            "tenants": {"total": total_tenants, "active": active_tenants},
+            "devices": {"used": total_devices, "capacity": max_devices_system},
+            "users": {"total": total_users},
+            "server": {"status": "Online", "cpu": "12%", "ram": "2.4GB / 4GB"}
+        },
+        "charts": {
+            "distribution": distribution,
+            "monthly": monthly_growth
+        }
+    }
 # ==========================================
 # 5.5. ASSIGN - GIAO XE CHO TÀI XẾ (Chỉ Admin Công ty)
 # ==========================================

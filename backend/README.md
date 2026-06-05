@@ -5,8 +5,9 @@ API server hiệu suất cao được xây dựng với **FastAPI**, cung cấp 
 ## 📋 Tổng Quan
 
 Backend của Navis Cloud cung cấp:
-- **🔐 Xác thực & Bảo mật**: JWT-based authentication, role-based access control (RBAC)
-- **📱 Quản lý Thiết bị**: CRUD operations, device status tracking, device provisioning
+- **🏢 Multi-Tenant Architecture**: Hỗ trợ nhiều tổ chức độc lập
+- **🔐 Xác thực & Bảo mật**: JWT-based authentication, role-based access control (RBAC) - 2 levels
+- **📱 Quản lý Thiết bị**: CRUD operations, device status tracking, tenant-specific devices
 - **📊 Telemetry Data API**: Lưu trữ và truy vấn dữ liệu sensor GNSS/MQTT dạng time-series
 - **🔄 MQTT Integration**: Real-time message processing, topic subscription management
 - **🗄️ Database**: PostgreSQL + TimescaleDB với SQLAlchemy ORM
@@ -18,14 +19,15 @@ Backend của Navis Cloud cung cấp:
 | Tính năng | Mô tả |
 |----------|--------|
 | ⚡ **FastAPI** | Framework hiện đại, tự động Swagger/OpenAPI docs |
+| 🏢 **Multi-Tenant** | Hỗ trợ nhiều tổ chức, tenant isolation, tenant-specific data |
 | 🔐 **JWT Auth** | JSON Web Token authentication với refresh tokens |
-| 🏷️ **Role-Based Access** | Admin, User, Viewer roles |
-| 📊 **Time-Series Data** | Optimized cho dữ liệu GNSS/sensor |
+| 🏷️ **2-Level RBAC** | System-level (admin/user) + Tenant-level (tenant_admin/operator/viewer) |
+| 📊 **Time-Series Data** | Optimized cho dữ liệu GNSS/sensor, TimescaleDB hypertables |
 | 🔄 **MQTT Broker** | Kết nối IoT devices thông qua MQTT |
 | 🧹 **Auto Cleanup** | Tự động xóa dữ liệu cũ (default: 30 ngày) |
 | ⏰ **Background Tasks** | Async tasks, scheduled jobs |
 | 🔀 **CORS Support** | Cho phép frontend kết nối an toàn |
-| 📡 **WebSocket Ready** | Hỗ trợ real-time updates |
+| 📡 **WebSocket Ready** | Hỗ trợ real-time updates với tenant protection |
 
 ## 🛠️ Tech Stack
 
@@ -300,12 +302,51 @@ curl -X POST http://localhost:8000/api/telemetry \
 }
 ```
 
-### User Roles
-| Role | Permissions |
-|------|-------------|
-| **admin** | Tất cả quyền (create/read/update/delete) |
-| **user** | Read/update thiết bị và telemetry riêng |
-| **viewer** | Read-only tất cả dữ liệu |
+### User Roles & Multi-Tenant RBAC
+
+Backend hỗ trợ **Multi-Tenant** architecture với hai cấp độ quyền:
+
+**1. System-Level Role (`role` field):**
+- `admin` - SuperAdmin: Quản lý các Tenant, không sử dụng device
+- `user` - Normal User: Thuộc một Tenant cụ thể
+
+**2. Tenant-Level Role (`role_in_tenant` field):**
+- `tenant_admin` - Quản trị viên Tenant: Quản lý users, devices, tạo user, điều khiển device
+- `operator` - Vận hành: Điều khiển device được giao
+- `viewer` - Người xem: Chỉ theo dõi trạng thái device
+
+**Permission Matrix:**
+
+| Chức Năng | SuperAdmin | Tenant Admin | Operator | Viewer |
+|-----------|-----------|-------------|----------|--------|
+| 👥 Quản lý Tenant | ✅ | ❌ | ❌ | ❌ |
+| 🏢 Kích hoạt/Vô hiệu Tenant | ✅ | ❌ | ❌ | ❌ |
+| 👤 Tạo User trong Tenant | ❌ | ✅ | ❌ | ❌ |
+| 📱 Thêm Device | ❌ | ✅ | ❌ | ❌ |
+| 🎮 Điều khiển Device | ❌ | ✅ (all) | ✅ (assigned) | ❌ |
+| 👁️ Xem Device | ❌ | ✅ | ✅ | ✅ |
+| 📊 Xem Telemetry | ❌ | ✅ | ✅ | ✅ |
+| 🔧 Cập nhật Device | ❌ | ✅ | ❌ | ❌ |
+
+**Token Structure (JWT):**
+```json
+{
+  "sub": "user@company.com",      // Email
+  "role": "user",                  // System-level: admin hoặc user
+  "tenant_id": 1,                  // ID của Tenant
+  "role_in_tenant": "tenant_admin" // Tenant-level: tenant_admin, operator, viewer
+}
+```
+
+**Middleware Protection (WebSocket):**
+```python
+# WebSocket endpoint bảo vệ bằng Multi-Tenant check
+if role != "admin":  # SuperAdmin xem mọi device
+    if device.tenant_id != user.tenant_id:
+        return "Unauthorized Tenant"
+    if role_in_tenant != "tenant_admin" and device.assigned_user_id != user.id:
+        return "Unauthorized Device Assignment"
+```
 
 ## 🔄 MQTT Integration
 
@@ -337,54 +378,148 @@ mosquitto_pub -h localhost \
   -m '{"signal": 25, "satellites": 12}'
 ```
 
-## 🗄️ Database Schema
+## 🗄️ Multi-Tenant Database Schema
 
 ### Tables
 
-**Users**
+**Tenants** (NEW)
 ```sql
-id           INT PRIMARY KEY
-email        VARCHAR UNIQUE NOT NULL
-password_hash VARCHAR NOT NULL
-full_name    VARCHAR
-role         ENUM (admin, user, viewer)
-is_active    BOOLEAN DEFAULT true
-created_at   TIMESTAMP
-updated_at   TIMESTAMP
+CREATE TABLE tenants (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) UNIQUE NOT NULL,
+  subscription_plan VARCHAR(50) DEFAULT 'free',
+  max_devices INT DEFAULT 5,           -- Giới hạn số device tối đa
+  is_active BOOLEAN DEFAULT TRUE,      -- Có thể deactivate tenant
+  created_at TIMESTAMP DEFAULT NOW()
+);
 ```
 
-**Devices**
+**Users** (UPDATED)
 ```sql
-id           INT PRIMARY KEY
-user_id      INT FOREIGN KEY
-name         VARCHAR NOT NULL
-device_type  VARCHAR (e.g., 'ublox')
-location     VARCHAR
-latitude     FLOAT
-longitude    FLOAT
-is_active    BOOLEAN DEFAULT true
-created_at   TIMESTAMP
-updated_at   TIMESTAMP
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  hashed_password VARCHAR(255) NOT NULL,
+  
+  -- System-level role
+  role VARCHAR(20) DEFAULT 'user',     -- admin (SuperAdmin) hoặc user
+  
+  -- Tenant info
+  tenant_id INT REFERENCES tenants(id) ON DELETE CASCADE,
+  role_in_tenant VARCHAR(20) DEFAULT 'viewer',  -- tenant_admin, operator, viewer
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Index để tìm users nhanh
+CREATE INDEX idx_users_tenant_id ON users(tenant_id);
+CREATE INDEX idx_users_email ON users(email);
 ```
 
-**Telemetry** (Time-series, hypertable)
+**Devices** (UPDATED - Bỏ owner_id, thay bằng tenant_id)
 ```sql
-id           BIGSERIAL PRIMARY KEY
-device_id    INT FOREIGN KEY
-timestamp    TIMESTAMP (auto)
-signal       FLOAT
-latitude     FLOAT
-longitude    FLOAT
-altitude     FLOAT
-accuracy     FLOAT
-satellites   INT
-raw_data     JSONB (optional)
-created_at   TIMESTAMP
+CREATE TABLE devices (
+  id SERIAL PRIMARY KEY,
+  device_id VARCHAR(100) UNIQUE NOT NULL,
+  name VARCHAR(255),
+  device_type VARCHAR(50),
+  
+  -- Location info
+  latitude FLOAT,
+  longitude FLOAT,
+  site_id VARCHAR(100) DEFAULT 'default_site',
+  
+  -- Multi-Tenant: Device thuộc về Tenant
+  tenant_id INT REFERENCES tenants(id) ON DELETE CASCADE,  -- Asset của công ty
+  assigned_user_id INT REFERENCES users(id) ON DELETE SET NULL,  -- Gán tạm cho user
+  
+  is_active BOOLEAN DEFAULT TRUE,
+  last_seen TIMESTAMP DEFAULT NOW(),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX idx_devices_tenant_id ON devices(tenant_id);
+CREATE INDEX idx_devices_device_id ON devices(device_id);
+CREATE INDEX idx_devices_assigned_user_id ON devices(assigned_user_id);
 ```
 
-Hypertable tự động được tạo với TimescaleDB:
+**Telemetry** (GIỮ NGUYÊN - phần này không đổi)
 ```sql
-SELECT create_hypertable('telemetry', 'timestamp', if_not_exists => TRUE);
+CREATE TABLE telemetries (
+  id BIGSERIAL PRIMARY KEY,
+  device_id INT REFERENCES devices(id) ON DELETE CASCADE,
+  
+  event_id VARCHAR(100) UNIQUE,
+  seq INT,
+  timestamp TIMESTAMP DEFAULT NOW(),
+  
+  -- Location data
+  latitude FLOAT,
+  longitude FLOAT,
+  height_m FLOAT,
+  
+  -- GNSS data
+  avg_cno_dbhz FLOAT,
+  sat_count INT,
+  pdop FLOAT,
+  is_spoofed BOOLEAN,
+  status VARCHAR(50),
+  
+  -- JSON columns
+  signals_data JSONB,
+  detectors_data JSONB
+);
+
+-- TimescaleDB hypertable (auto-managed)
+SELECT create_hypertable('telemetries', 'timestamp', if_not_exists => TRUE);
+```
+
+**Alarms** (GIỮ NGUYÊN)
+```sql
+CREATE TABLE alarms (
+  id SERIAL PRIMARY KEY,
+  device_id INT REFERENCES devices(id) ON DELETE CASCADE,
+  severity VARCHAR(50),
+  event_desc TEXT,
+  status VARCHAR(50) DEFAULT 'Active',
+  created_at TIMESTAMP DEFAULT NOW(),
+  resolved_at TIMESTAMP
+);
+```
+
+### Data Flow Example
+
+```
+1. Tenant A (Công ty A) được tạo
+   - Tenant ID = 1, max_devices = 10, is_active = True
+
+2. Admin của Tenant A (Tenant Admin)
+   - id = 5, email = admin@companya.com
+   - role = 'user', tenant_id = 1, role_in_tenant = 'tenant_admin'
+
+3. Nhân viên của Tenant A (Operator)
+   - id = 6, email = driver@companya.com
+   - role = 'user', tenant_id = 1, role_in_tenant = 'operator'
+
+4. Device của Tenant A
+   - id = 1, device_id = 'gnss_001', tenant_id = 1
+   - assigned_user_id = 6 (gán cho driver)
+
+5. Khi driver đăng nhập:
+   - JWT token: {role: 'user', tenant_id: 1, role_in_tenant: 'operator'}
+   - Chỉ có thể xem device được giao (gnss_001)
+   - Backend tự động filter: WHERE device.tenant_id = 1 AND assigned_user_id = 6
+
+6. Khi Tenant Admin đăng nhập:
+   - JWT token: {role: 'user', tenant_id: 1, role_in_tenant: 'tenant_admin'}
+   - Có thể xem/quản lý tất cả device của Tenant 1
+
+7. Khi SuperAdmin đăng nhập:
+   - JWT token: {role: 'admin', tenant_id: null, role_in_tenant: null}
+   - Chỉ có thể xem/quản lý Tenants (không xem device)
 ```
 
 ## ⚙️ Configuration

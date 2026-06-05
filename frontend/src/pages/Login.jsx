@@ -175,9 +175,6 @@ const Login = () => {
                             </div>
                         </div>
                         <button type="submit" className="btn-submit">LOGIN</button>
-                        <div className="auth-switch">
-                            <span>Chưa có tài khoản? <span className="auth-link" onClick={() => setCurrentForm('register')}>Đăng ký</span></span>
-                        </div>
                     </form>
                 )}
 

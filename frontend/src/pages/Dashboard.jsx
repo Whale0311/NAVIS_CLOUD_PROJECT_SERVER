@@ -6,7 +6,7 @@ import {
 import { Bar } from 'react-chartjs-2';
 import { Cpu, Wifi, Activity, Satellite } from 'lucide-react';
 import { useAuth } from '../context/AuthContext'; // IMPORT ĐỂ LẤY THÔNG TIN USER
-
+import SuperAdminDashboard from './SuperAdminDashboard'; // Import file mới
 // Cập nhật màu sắc ChartJS theo tone Dark Mode mới
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 ChartJS.defaults.color = '#8b8d93'; 
@@ -15,7 +15,9 @@ ChartJS.defaults.font.family = "'Inter', sans-serif";
 
 const Dashboard = () => {
     const { user } = useAuth(); // Lấy thông tin người dùng đang đăng nhập
-
+    if (user?.role === 'admin') {
+        return <SuperAdminDashboard />;
+    }
     // State quản lý KPI
     const [kpi, setKpi] = useState({ total: 0, conn: 0, cno: '--', sat: '--' });
     

@@ -12,14 +12,16 @@ Nền tảng quản lý dữ liệu IoT toàn diện được thiết kế để
 - 🐳 **Containerization**: Docker & Docker Compose
 
 ### Công Dụng Chính
-- Theo dõi thiết bị GPS/GNSS theo thời gian thực
-- Quản lý nhiều thiết bị IoT từ một nền tảng
-- Hiển thị dữ liệu telemetry trên dashboard interactive
-- Lưu trữ lịch sử dữ liệu dài hạn (30 ngày tự động cleanup)
-- Phát hiện cảnh báo tự động
-- Quản lý người dùng và quyền truy cập (JWT-based)
+- 🏢 **Multi-Tenant Support**: Hỗ trợ nhiều tổ chức độc lập trên một nền tảng
+- 🔐 **Role-Based Access Control**: Phân quyền chi tiết theo vai trò (SuperAdmin, Tenant Admin, Operator, Viewer)
+- 📱 Theo dõi thiết bị GPS/GNSS theo thời gian thực
+- 🚗 Quản lý nhiều thiết bị IoT từ một nền tảng
+- 📊 Hiển thị dữ liệu telemetry trên dashboard interactive
+- 💾 Lưu trữ lịch sử dữ liệu dài hạn (30 ngày tự động cleanup)
+- 🚨 Phát hiện cảnh báo tự động
+- 👥 Quản lý người dùng và quyền truy cập từng tenant (JWT-based)
 
-## 🏗️ Kiến Trúc Hệ Thống
+## 🏗️ Kiến Trúc Hệ Thống (Technical Architecture)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -46,6 +48,71 @@ Nền tảng quản lý dữ liệu IoT toàn diện được thiết kế để
                │
     (Hardware Simulator / Real GNSS Devices)
 ```
+
+## 🏢 Multi-Tenant Architecture
+
+**Navis Cloud** sử dụng mô hình **Multi-Tenant** để hỗ trợ nhiều tổ chức độc lập cùng sử dụng một hệ thống:
+
+### Cấu Trúc Dữ Liệu
+```
+System (Navis Cloud)
+├── SuperAdmin (System-wide admin)
+│   └── Quản lý các Tenant (enable/disable, device limits)
+│
+├── Tenant 1 (Công ty A)
+│   ├── Tenant Admin (Quản trị viên công ty)
+│   │   ├── Tạo/xóa user trong công ty
+│   │   ├── Quản lý device của công ty
+│   │   └── Gán device cho nhân viên
+│   │
+│   ├── Operator (Nhân viên vận hành)
+│   │   └── Điều khiển device được giao
+│   │
+│   └── Viewer (Nhân viên xem)
+│       └── Theo dõi trạng thái device
+│
+└── Tenant 2 (Công ty B)
+    ├── Tenant Admin
+    ├── Operator
+    └── Viewer
+```
+
+### Phân Quyền Chi Tiết
+
+| Chức Năng | SuperAdmin | Tenant Admin | Operator | Viewer |
+|-----------|-----------|-------------|----------|--------|
+| 👥 Quản lý Tenant | ✅ | ❌ | ❌ | ❌ |
+| 🏢 Kích hoạt/Vô hiệu Tenant | ✅ | ❌ | ❌ | ❌ |
+| 📱 Thêm Device | ❌ | ✅ | ❌ | ❌ |
+| 🎮 Điều khiển Device | ❌ | ✅ (all) | ✅ (assigned) | ❌ |
+| 👁️ Xem Device | ❌ | ✅ | ✅ | ✅ |
+| 📊 Xem Telemetry | ❌ | ✅ | ✅ | ✅ |
+| 👤 Quản lý User | ❌ | ✅ | ❌ | ❌ |
+| ⚙️ System Config | ✅ | ❌ | ❌ | ❌ |
+
+### Cơ Chế Bảo Mật (Security) - 4 Lớp Bảo Vệ
+
+1. **Token Verification** - JWT decode & user validation
+   - Decode JWT token từ Authorization header
+   - Verify signature với SECRET_KEY
+   - Load User từ database
+
+2. **Authorization Check** - Role-based permission
+   - Kiểm tra role (admin / user)
+   - Kiểm tra role_in_tenant (tenant_admin / operator / viewer)
+   - Raise 403 Forbidden nếu không đủ quyền
+
+3. **Data Filtering** - Query-level tenant isolation
+   - Query chỉ return data của tenant tương ứng: `WHERE device.tenant_id = user.tenant_id`
+   - Operator chỉ thấy device được giao: `WHERE assigned_user_id = user.id`
+
+4. **WebSocket Security** - Real-time connection protection
+   - Verify token từ URL query string
+   - Check tenant_id & assignment trước khi accept
+
+**Kết quả:** Mỗi user chỉ thấy data của tenant/device được phép. SuperAdmin không xem device, chỉ quản lý Tenant.
+
+**Xem chi tiết:** [MULTITENANT_SECURITY.md](backend/MULTITENANT_SECURITY.md) - Giải thích flow đăng nhập, JWT token, middleware, API protection, WebSocket security, và test cases.
 
 ## 📦 Cấu Trúc Thư Mục
 

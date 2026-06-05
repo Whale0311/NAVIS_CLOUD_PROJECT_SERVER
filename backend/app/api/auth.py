@@ -6,11 +6,11 @@ from sqlalchemy import or_
 from app.core.database import get_db
 from app.models.schema import User, Tenant
 from app.core.security import get_password_hash, verify_password, create_access_token, SECRET_KEY, ALGORITHM
-from app.schemas import UserCreate, UserLogin, ForgotPassword , TenantUpdate
+from app.schemas import UserCreate, UserLogin, ForgotPassword 
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import  Optional
 
 load_dotenv()
 router = APIRouter()
@@ -46,6 +46,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     return {"message": "Đăng ký thành công! Không gian làm việc của bạn đã sẵn sàng."}
+
 
 # ==========================================
 # 2. ĐĂNG NHẬP & QUÊN MẬT KHẨU
@@ -145,7 +146,8 @@ def get_users(admin: User = Depends(require_tenant_admin), db: Session = Depends
             "role": u.role,
             "tenant_id": u.tenant_id,
             "role_in_tenant": u.role_in_tenant,
-            "tenant_name": t.name if t else "Hệ thống (System)"
+            "tenant_name": t.name if t else "Hệ thống (System)",
+            "tenant_status": t.is_active if t else True
         }
         final_list.append(user_dict)
     return final_list
