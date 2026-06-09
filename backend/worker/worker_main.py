@@ -7,6 +7,7 @@ import sys
 import os
 import paho.mqtt.client as mqtt
 from datetime import datetime, timezone
+import hashlib
 import json
 import base64
 # 1. Lấy đường dẫn của thư mục gốc (Navis-Cloud-Project)
@@ -41,6 +42,7 @@ class MQTTSubscriber:
         self.db = None
         self.parser = GNSSParser()
         self.message_count = 0
+        self.sdr_buffer = {}
         
     def on_connect(self, client, userdata, flags, reason_code, properties):
         """Callback khi kết nối với MQTT broker"""
@@ -92,10 +94,13 @@ class MQTTSubscriber:
             print(f"   Schema: {mqtt_message.schema}")
             
             # Xử lý dữ liệu theo loại schema
-            # Xử lý dữ liệu theo loại schema
             schema_name = mqtt_message.schema
-            if "detect.epoch" in schema_name:
+            if "detect.ublox" in schema_name:     # 🚨 SỬA TỪ "detect.epoch" THÀNH "detect.ublox"
                 self.handle_detect_epoch(mqtt_message)
+            elif "detect.sdr" in schema_name:     # 🚨 THÊM MỚI: Bắt sự kiện AI phát hiện Jamming
+                self.handle_detect_sdr(mqtt_message)
+            elif "raw.sdr" in schema_name:        # 🚨 THÊM MỚI: Bắt Raw File .bin của SDR
+                self.handle_raw_sdr(mqtt_message)
             elif "health" in schema_name:
                 self.handle_health_data(mqtt_message)
             elif "position" in schema_name:
@@ -438,6 +443,119 @@ class MQTTSubscriber:
         print("\n🛑 Dừng MQTT Subscriber...")
         self.client.disconnect()
         self.client.loop_stop()
+    def handle_detect_sdr(self, message):
+        """Xử lý kết quả AI nhận diện Jamming từ thiết bị SDR"""
+        try:
+            print(f"  [SDR-AI] 🛑 Báo động: Đã phát hiện {message.data.get('class')} từ {message.device_id}!")
+            # Bắn thẳng nguyên cục JSON có chứa ảnh Base64 sang FastAPI để Web hiển thị
+            raw_data = message.data if isinstance(message.data, dict) else {}
+            requests.post(
+                f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
+                json={
+                    "event_type": "sdr_detect",
+                    "schema": "gnss.detect.sdr.v1",
+                    "data": raw_data 
+                },
+                timeout=2
+            )
+        except Exception as e:
+            print(f"  ⚠️ Lỗi xử lý SDR Detect: {e}")
+
+    def handle_raw_sdr(self, message):
+        """Hứng các chunk file .bin của SDR, ghép lại và lưu trữ"""
+        try:
+            db = SessionLocal()
+            data = message.data
+            
+            file_id = data.get("file_id")
+            chunk_index = data.get("chunk_index")
+            chunk_count = data.get("chunk_count")
+            chunk_b64 = data.get("chunk_base64")
+            file_sha256 = data.get("file_sha256")
+
+            # Bỏ qua nếu thiếu trường quan trọng
+            if not file_id or chunk_index is None or chunk_count is None or not chunk_b64:
+                return
+
+            # 1. Khởi tạo "rổ đựng" cho file này nếu chưa có
+            if file_id not in self.sdr_buffer:
+                self.sdr_buffer[file_id] = {
+                    "chunks": {},
+                    "count": chunk_count,
+                    "device_id": message.device_id,
+                    "timestamp": message.event_time,
+                    "seq": message.seq,
+                    "file_sha256": file_sha256
+                }
+
+            # 2. Cất chunk vào rổ theo đúng số thứ tự (index)
+            self.sdr_buffer[file_id]["chunks"][chunk_index] = chunk_b64
+            current_chunks = len(self.sdr_buffer[file_id]["chunks"])
+
+            print(f"  [SDR-RAW] 📦 Đang tải {file_id}: Chunk {chunk_index + 1}/{chunk_count} ({current_chunks}/{chunk_count})")
+
+            # 3. KIỂM TRA ĐIỀU KIỆN: Đã nhận đủ tất cả các mảnh ghép chưa?
+            if current_chunks == chunk_count:
+                print(f"  [SDR-RAW] 🔄 Đã nhận đủ {chunk_count} chunk. Đang tiến hành giải mã và ghép file...")
+
+                device = db.query(Device).filter(Device.device_id == message.device_id).first()
+                if not device:
+                    print(f"  ⚠️ CẢNH BÁO: Thiết bị {message.device_id} lạ. Từ chối lưu file forensic!")
+                    del self.sdr_buffer[file_id]
+                    return
+
+                # 4. Lấy từng chunk theo thứ tự 0 -> chunk_count, decode base64 và dán lại với nhau
+                assembled_bytes = bytearray()
+                for i in range(chunk_count):
+                    # Nếu vì lý do mạng rớt mất 1 chunk ở giữa, bắt lỗi ngay
+                    if i not in self.sdr_buffer[file_id]["chunks"]:
+                        print(f"  ❌ LỖI TRẦM TRỌNG: Thiếu chunk số {i}. Hủy file {file_id}!")
+                        del self.sdr_buffer[file_id]
+                        return
+                    
+                    assembled_bytes.extend(base64.b64decode(self.sdr_buffer[file_id]["chunks"][i]))
+
+                # 5. Kiểm tra mã băm SHA-256 (Đảm bảo file không sai 1 bit nào so với mạch gửi)
+                if file_sha256:
+                    calculated_sha = hashlib.sha256(assembled_bytes).hexdigest()
+                    if calculated_sha != file_sha256:
+                        print(f"  ❌ CẢNH BÁO: File {file_id} bị sai lệch dữ liệu (SHA256 Mismatch). Đã hủy!")
+                        del self.sdr_buffer[file_id]
+                        return
+
+                # 6. Tạo thư mục và Ghi ra ổ cứng (Cùng thư mục với file UBX)
+                today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                storage_dir = os.path.join(BACKEND_DIR, "storage", "raw_logs", today_str)
+                os.makedirs(storage_dir, exist_ok=True)
+
+                filename = f"{file_id}.bin"
+                file_path = os.path.join(storage_dir, filename)
+
+                with open(file_path, "wb") as f:
+                    f.write(assembled_bytes)
+
+                # 7. Lưu dấu vết vào Database
+                raw_log = RawDataLog(
+                    device_id=device.id,
+                    timestamp=self.sdr_buffer[file_id]["timestamp"],
+                    seq=self.sdr_buffer[file_id]["seq"],
+                    data_type="sdr_bin",  # Phân loại đây là SDR (Thay vì ublox)
+                    file_path=file_path,
+                    file_size_bytes=len(assembled_bytes)
+                )
+                db.add(raw_log)
+                db.commit()
+
+                print(f"  ✅ [SDR-RAW] Đã lưu thành công file Forensic: {filename} ({len(assembled_bytes)} bytes)")
+
+                # 8. XÓA BỘ NHỚ ĐỆM (Rất quan trọng để Server không bị sập RAM)
+                del self.sdr_buffer[file_id]
+
+        except Exception as e:
+            print(f"  ❌ Lỗi trong quá trình ghép chunk SDR: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
 
 def main():

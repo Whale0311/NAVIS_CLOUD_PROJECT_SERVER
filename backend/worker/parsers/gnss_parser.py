@@ -43,7 +43,7 @@ class GNSSParser:
     @staticmethod
     def extract_telemetry_data(message: MQTTGNSSMessage) -> Optional[Dict[str, Any]]:
         """Trích xuất dữ liệu telemetry: Hỗ trợ cả Schema phẳng và Schema lồng nhau (v1)"""
-        if "detect.epoch" not in message.schema:
+        if "detect.ublox" not in message.schema:
             return None
         
         try:
