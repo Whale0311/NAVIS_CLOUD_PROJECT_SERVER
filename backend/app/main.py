@@ -124,8 +124,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(devices.router)
-app.include_router(telemetry.router)
-
+app.include_router(telemetry.router, prefix="/api")
 # Dành riêng cho kiểm tra sức khỏe
 @app.get("/api")
 def read_root():
