@@ -37,6 +37,25 @@ const DeviceDetail = () => {
 
     const timeoutRef = useRef(null);
     const toastIdRef = useRef(null);
+    const formatFileTime = (timeVal) => {
+        if (!timeVal) return 'Chưa xác định';
+        
+        // 1. Nếu Backend trả về dạng số (Unix timestamp)
+        if (typeof timeVal === 'number') {
+            return new Date(timeVal < 1e12 ? timeVal * 1000 : timeVal).toLocaleString('vi-VN');
+        }
+
+        // 2. Nếu là chuỗi ISO của Python, cắt bỏ phần thập phân (.341000)
+        let safeStr = String(timeVal).replace(/\.\d+/, ''); 
+        
+        // Đảm bảo có đuôi 'Z' để trình duyệt hiểu đây là giờ chuẩn UTC
+        if (!safeStr.endsWith('Z') && !safeStr.includes('+')) {
+            safeStr += 'Z';
+        }
+        
+        const d = new Date(safeStr);
+        return isNaN(d.getTime()) ? `Lỗi: ${timeVal}` : d.toLocaleString('vi-VN');
+    };
 
     const handleCmdChange = (e) => {
         const cmd = e.target.value;
@@ -318,7 +337,7 @@ const DeviceDetail = () => {
                                     {files.map(f => (
                                         <tr key={f.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                                             <td style={{ padding: '15px', color: '#fff' }}>{f.file_name}</td>
-                                            <td style={{ padding: '15px', color: '#e2e8f0' }}>{f.timestamp ? new Date(f.timestamp).toLocaleString('vi-VN') : 'Chưa xác định'}</td>
+                                            <td style={{ padding: '15px', color: '#e2e8f0' }}>{formatFileTime(f.timestamp)}</td>
                                             <td style={{ padding: '15px', color: '#e2e8f0' }}>{(f.file_size_bytes / 1024).toFixed(2)} KB</td>
                                             <td style={{ padding: '15px', textAlign: 'center', position: 'relative' }}>
                                                 <button 
