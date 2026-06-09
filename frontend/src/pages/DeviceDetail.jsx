@@ -318,7 +318,7 @@ const DeviceDetail = () => {
                                     {files.map(f => (
                                         <tr key={f.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                                             <td style={{ padding: '15px', color: '#fff' }}>{f.file_name}</td>
-                                            <td style={{ padding: '15px', color: '#e2e8f0' }}>{new Date(f.timestamp + 'Z').toLocaleString('vi-VN')}</td>
+                                            <td style={{ padding: '15px', color: '#e2e8f0' }}>{f.timestamp ? new Date(f.timestamp).toLocaleString('vi-VN') : 'Chưa xác định'}</td>
                                             <td style={{ padding: '15px', color: '#e2e8f0' }}>{(f.file_size_bytes / 1024).toFixed(2)} KB</td>
                                             <td style={{ padding: '15px', textAlign: 'center', position: 'relative' }}>
                                                 <button 

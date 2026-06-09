@@ -200,105 +200,78 @@ class MQTTSubscriber:
                 return
 
             alarm_saved = False 
+            webhook_payload = None # Chứa nội dung để báo lên Web
 
-            # 1. BẮT CẢNH BÁO BẢO MẬT (TỪ SIMULATOR HOẶC MẠCH GNSS)
+            # 1. BẮT CẢNH BÁO BẢO MẬT TỪ MẠCH
             if event_type == "spoofing_detected" or event_type == "alarm":
-                alarm = Alarm(
-                    device_id=device.id,
-                    severity=raw_data.get("severity", "Critical"),
-                    event_desc=raw_data.get("message", "Phát hiện giả mạo tín hiệu GPS!"),
-                    status="Active"
-                )
+                msg_desc = raw_data.get("message", "Phát hiện giả mạo tín hiệu GPS!")
+                severity = raw_data.get("severity", "Critical")
+                
+                alarm = Alarm(device_id=device.id, severity=severity, event_desc=msg_desc, status="Active")
                 db.add(alarm)
                 alarm_saved = True
+                webhook_payload = {"event_type": "alarm", "schema": "gnss.health.v1", "data": {"severity": severity, "message": msg_desc}}
 
-            # 2. BẮT CẢNH BÁO LỖI HỆ THỐNG (DROP / BACKLOG) - ĐÃ CHỐNG SPAM
+            # 2. XỬ LÝ LỖI HỆ THỐNG (DROPPED / BACKLOG)
             if health_data:
-                # --- XỬ LÝ DROPPED FRAMES ---
+                # --- DROPPED FRAMES ---
                 total_dropped = (health_data.get("ingress_dropped", 0) + 
                                  health_data.get("detect_dropped", 0) + 
                                  health_data.get("raw_dropped", 0))
                                  
                 if total_dropped > 0:
-                    # Kiểm tra xem đã có cảnh báo rớt gói tin nào đang Active chưa
                     existing_drop_alarm = db.query(Alarm).filter(
-                        Alarm.device_id == device.id,
-                        Alarm.event_desc.like("Dropped % frames total"),
-                        Alarm.status == "Active"
+                        Alarm.device_id == device.id, Alarm.event_desc.like("Dropped % frames total"), Alarm.status == "Active"
                     ).first()
 
+                    new_desc = f"Dropped {total_dropped} frames total"
                     if not existing_drop_alarm:
-                        alarm = Alarm(
-                            device_id=device.id,
-                            severity="Warning",
-                            event_desc=f"Dropped {total_dropped} frames total",
-                            status="Active"
-                        )
+                        alarm = Alarm(device_id=device.id, severity="Warning", event_desc=new_desc, status="Active")
                         db.add(alarm)
                         alarm_saved = True
+                        webhook_payload = {"event_type": "alarm", "schema": "gnss.health.v1", "data": {"severity": "Warning", "message": new_desc}}
                     else:
-                        # Nếu số lượng drop tăng lên thì cập nhật lại mô tả
-                        new_desc = f"Dropped {total_dropped} frames total"
                         if existing_drop_alarm.event_desc != new_desc:
                             existing_drop_alarm.event_desc = new_desc
                             alarm_saved = True
+                            # Cố tình KHÔNG tạo webhook_payload ở đây để tránh Spam Frontend liên tục
 
-                # --- XỬ LÝ BACKLOG ---
-                total_backlog = (health_data.get("ingress_backlog", 0) + 
-                                 health_data.get("detect_backlog", 0))
-                
-                # Tìm xem có cảnh báo Backlog nào đang Active không
+                # --- BACKLOG ---
+                total_backlog = (health_data.get("ingress_backlog", 0) + health_data.get("detect_backlog", 0))
                 existing_backlog_alarm = db.query(Alarm).filter(
-                    Alarm.device_id == device.id,
-                    Alarm.event_desc.like("High processing backlog%"),
-                    Alarm.status == "Active"
+                    Alarm.device_id == device.id, Alarm.event_desc.like("High processing backlog%"), Alarm.status == "Active"
                 ).first()
                                  
                 if total_backlog > 100:
+                    new_desc = f"High processing backlog: {total_backlog} messages"
                     if not existing_backlog_alarm:
-                        # Tạo mới nếu đây là sự cố nghẽn mạng mới
-                        alarm = Alarm(
-                            device_id=device.id,
-                            severity="Warning",
-                            event_desc=f"High processing backlog: {total_backlog} messages",
-                            status="Active"
-                        )
+                        alarm = Alarm(device_id=device.id, severity="Warning", event_desc=new_desc, status="Active")
                         db.add(alarm)
                         alarm_saved = True
+                        webhook_payload = {"event_type": "alarm", "schema": "gnss.health.v1", "data": {"severity": "Warning", "message": new_desc}}
                     else:
-                        # Chỉ cập nhật con số vào record cũ, KHÔNG tạo record mới
-                        new_desc = f"High processing backlog: {total_backlog} messages"
                         if existing_backlog_alarm.event_desc != new_desc:
                             existing_backlog_alarm.event_desc = new_desc
                             alarm_saved = True
                 else:
-                    # TỰ ĐỘNG PHỤC HỒI: Nếu backlog tụt xuống dưới 100, đóng cảnh báo lại
                     if existing_backlog_alarm:
                         existing_backlog_alarm.status = "Resolved"
                         alarm_saved = True
+                        webhook_payload = {"event_type": "alarm", "schema": "gnss.health.v1", "data": {"severity": "Info", "message": "Nghẽn mạng dữ liệu đã được giải quyết."}}
             
-            # Khóa dữ liệu vào DB nếu có thay đổi
+            # 3. LƯU DATABASE VÀ CHỈ BẮN WEBHOOK KHI THỰC SỰ CẦN THIẾT
             if alarm_saved:
                 db.commit()
-                # print(f"   🚨 Đã cập nhật trạng thái Alarm vào Database!")
-                
-                # 3. BẮN WEBHOOK KÍCH HOẠT RADAR FRONTEND
-                try:
-                    requests.post(
-                        f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
-                        json={
-                            "event_type": "alarm",
-                            "schema": "gnss.health.v1",
-                            "data": {
-                                "event_type": str(event_type),
-                                "severity": str(raw_data.get("severity", "Critical")),
-                                "message": str(raw_data.get("message", "Hệ thống có sự thay đổi trạng thái!"))
-                            }
-                        },
-                        timeout=2
-                    )
-                except Exception as req_err:
-                    print(f"   ⚠️ Không thể bắn Webhook Alarm: {req_err}")
+                if webhook_payload:
+                    try:
+                        import requests
+                        requests.post(
+                            f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
+                            json=webhook_payload,
+                            timeout=2
+                        )
+                    except Exception as req_err:
+                        print(f"   ⚠️ Không thể bắn Webhook Alarm: {req_err}")
 
         except Exception as e:
             print(f"   ❌ Lỗi handle_health_data: {e}")
