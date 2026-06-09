@@ -228,9 +228,25 @@ def delete_tenant_user(user_id: int, admin: User = Depends(require_tenant_admin)
     if target_user.id == admin.id:
         raise HTTPException(status_code=400, detail="Bạn không thể tự xóa chính mình!")
         
-    db.delete(target_user)
+    # ==========================================
+    # 🚨 LOGIC MỚI: XỬ LÝ XÓA THÔNG MINH
+    # ==========================================
+    if target_user.role_in_tenant == "tenant_admin":
+        # 1. Nếu người bị xóa là Giám đốc -> Tìm và Xóa luôn cả Tổ chức (Tenant)
+        tenant = db.query(Tenant).filter(Tenant.id == target_user.tenant_id).first()
+        if tenant:
+            db.delete(tenant) 
+            # Lưu ý: Khi db.delete(tenant), SQLAlchemy/PostgreSQL sẽ tự động xóa 
+            # luôn target_user và toàn bộ devices của tenant này nhờ cơ chế CASCADE.
+        else:
+            # Trường hợp fallback nếu Giám đốc này chưa có tenant_id
+            db.delete(target_user)
+    else:
+        # 2. Nếu người bị xóa chỉ là User bình thường -> Xóa User như cũ
+        db.delete(target_user)
+        
     db.commit()
-    return {"message": "Đã xóa tài khoản"}
+    return {"message": "Đã xóa tài khoản và các dữ liệu liên quan thành công!"}
 
 @router.put("/api/users/{user_id}/password")
 def change_tenant_user_password(user_id: int, data: AdminUpdatePassword, admin: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
