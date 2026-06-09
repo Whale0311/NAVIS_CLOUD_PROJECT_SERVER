@@ -33,6 +33,9 @@ const Charts = () => {
     const [selectedDeviceId, setSelectedDeviceId] = useState('');
     const [isLive, setIsLive] = useState(false);
     
+    // MỚI: State lưu trữ hình ảnh phổ SDR và kết quả AI
+    const [sdrData, setSdrData] = useState(null);
+    
     const chartStateRef = useRef({
         trendLabels: Array(MAX_HISTORY).fill('--:--'),
         trendData: Array(MAX_HISTORY).fill(null),
@@ -80,7 +83,7 @@ const Charts = () => {
     useEffect(() => {
         let isMounted = true;
         const loadDevices = async () => {
-            const token = localStorage.getItem("navis_token");
+            const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
             try {
                 const res = await fetch("/api/devices", {
                     headers: { "Authorization": `Bearer ${token}` }
@@ -104,6 +107,7 @@ const Charts = () => {
     useEffect(() => {
         if (!selectedDeviceId) return;
         
+        // Reset state khi đổi thiết bị
         chartStateRef.current = {
             trendLabels: Array(MAX_HISTORY).fill('--:--'),
             trendData: Array(MAX_HISTORY).fill(null),
@@ -112,12 +116,11 @@ const Charts = () => {
         };
         setChartState(chartStateRef.current);
         setIsLive(false);
+        setSdrData(null); // Reset lại ảnh SDR
 
         const loadHistory = async () => {
-            // Hỗ trợ lấy token từ cả 2 key phổ biến
             const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
             try {
-                // SỬA LỖI API: Đổi endpoint sang router telemetry mới
                 const res = await fetch(`/api/telemetry/devices/${selectedDeviceId}?limit=${MAX_HISTORY}`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
@@ -164,16 +167,29 @@ const Charts = () => {
         const handleGlobalUpdate = (event) => {
             const msg = event.detail; 
             
+            // 1. Nếu là dữ liệu Ublox/GNSS thường
             const isPosition = 
                 msg.event_type === "telemetry_update" || 
                 msg.event_type === "position_update" || 
                 msg.event_type === "epoch" ||
+                msg.schema === "gnss.detect.ublox.v1" ||
                 msg.schema === "gnss.detect.epoch.v1" ||
                 (msg.data && msg.data.position !== undefined);
 
-            // Cập nhật biểu đồ nếu data thuộc về đúng chiếc xe đang xem!
             if (isPosition && msg.device_id === selectedDeviceId) {
                 processNewTelemetry(msg.data); 
+            }
+
+            // 2. MỚI: Nếu là dữ liệu cảnh báo SDR (Có chứa ảnh)
+            if (msg.event_type === "sdr_detect" && msg.device_id === selectedDeviceId) {
+                if (msg.data && msg.data.spectrum_image_base64) {
+                    setSdrData({
+                        image: msg.data.spectrum_image_base64,
+                        threatClass: msg.data.class || "Unknown",
+                        confidence: msg.data.confidence || 0,
+                        time: msg.data.event_time || new Date().toISOString()
+                    });
+                }
             }
         };
 
@@ -245,10 +261,12 @@ const Charts = () => {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+                    
+                    {/* BẢN ĐỒ NHIỆT (WATERFALL) */}
                     <div className="chart-card" style={{ gridColumn: 'span 3', height: '450px', display: 'flex', flexDirection: 'column' }}>
                         <div className="chart-title tooltip-wrapper">
                             Spectrum Waterfall (Real-time) <span className="info-icon">ⓘ</span>
-                            <div className="tooltip-glass">Bản đồ nhiệt thể hiện sự thay đổi cường độ tín hiệu...</div>
+                            <div className="tooltip-glass">Bản đồ nhiệt thể hiện sự thay đổi cường độ tín hiệu C/N0 của các vệ tinh.</div>
                         </div>
                         <div style={{ flexGrow: 1, position: 'relative' }}>
                             <Plot
@@ -259,20 +277,62 @@ const Charts = () => {
                         </div>
                     </div>
 
+                    {/* MỚI: KHU VỰC HIỂN THỊ ẢNH PHỔ SDR KHI CÓ CẢNH BÁO */}
+                    <div className="chart-card" style={{ gridColumn: 'span 3', minHeight: '150px', display: 'flex', flexDirection: 'column', border: sdrData ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255,255,255,0.03)' }}>
+                        <div className="chart-title tooltip-wrapper">
+                            SDR Spectrum Analysis (AI Detect) <span className="info-icon">ⓘ</span>
+                            <div className="tooltip-glass">Phân tích phổ bằng SDR và AI. Ảnh chỉ hiện khi phát hiện nhiễu sóng (Jamming/Spoofing).</div>
+                        </div>
+                        
+                        <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#131517', borderRadius: '10px', marginTop: '15px', padding: '15px' }}>
+                            {sdrData && sdrData.image ? (
+                                <div style={{ width: '100%', textAlign: 'center' }}>
+                                    <div style={{ marginBottom: '15px', display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                        <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '1.1rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '4px 12px', borderRadius: '6px' }}>
+                                            ⚠️ Phát hiện: {sdrData.threatClass}
+                                        </span>
+                                        <span style={{ color: '#f59e0b', fontSize: '1.1rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '4px 12px', borderRadius: '6px' }}>
+                                            Độ tự tin (AI): {(sdrData.confidence * 100).toFixed(1)}%
+                                        </span>
+                                        <span style={{ color: '#8b8d93', fontSize: '1.1rem', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '4px 12px', borderRadius: '6px' }}>
+                                            {(() => {
+                                                let rawTime = sdrData.time;
+                                                if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
+                                                return new Date(rawTime).toLocaleString('vi-VN');
+                                            })()}
+                                        </span>
+                                    </div>
+                                    {/* Khúc render chuỗi Base64 thành ảnh */}
+                                    <img 
+                                        src={`data:image/png;base64,${sdrData.image}`} 
+                                        alt="SDR Spectrum Jamming" 
+                                        style={{ maxWidth: '100%', maxHeight: '450px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', boxShadow: '0 10px 25px rgba(239, 68, 68, 0.15)' }} 
+                                    />
+                                </div>
+                            ) : (
+                                <span style={{ color: '#8b8d93', fontStyle: 'italic' }}>
+                                    🟢 Hệ thống vô tuyến đang trong trạng thái bình thường. Chưa ghi nhận tín hiệu gây nhiễu.
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* BIỂU ĐỒ C/N0 */}
                     <div className="chart-card" style={{ gridColumn: 'span 2', height: '350px', display: 'flex', flexDirection: 'column' }}>
                         <div className="chart-title tooltip-wrapper">
                             Average C/N₀ Trend <span className="info-icon">ⓘ</span>
-                            <div className="tooltip-glass">Biểu đồ thể hiện xu hướng thay đổi giá trị C/N₀ theo thời gian...</div>
+                            <div className="tooltip-glass">Biểu đồ thể hiện xu hướng thay đổi giá trị C/N₀ theo thời gian.</div>
                         </div>
                         <div style={{ flexGrow: 1, position: 'relative' }}>
                             <Line data={trendConfig} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { min: 15, max: 60 }, x: { grid: { display: false } } }, plugins: { legend: { display: false } }, animation: { duration: 0 } }} />
                         </div>
                     </div>
 
+                    {/* BẢN ĐỒ VỆ TINH (SKYPLOT) */}
                     <div className="chart-card" style={{ gridColumn: 'span 1', height: '350px', display: 'flex', flexDirection: 'column' }}>
                         <div className="chart-title tooltip-wrapper">
                             Skyplot Tracking <span className="info-icon">ⓘ</span>
-                            <div className="tooltip-glass">Bản đồ thể hiện vị trí và trạng thái của các vệ tinh...</div>
+                            <div className="tooltip-glass">Thống kê số lượng vệ tinh đang bắt được của từng hệ thống.</div>
                         </div>
                         <div style={{ flexGrow: 1, position: 'relative' }}>
                             <PolarArea 
