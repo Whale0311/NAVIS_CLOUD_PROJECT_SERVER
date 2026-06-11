@@ -7,16 +7,19 @@ import paho.mqtt.publish as mqtt_publish
 import uuid
 import json
 import os
+import io
+import zipfile
 import psutil
+import urllib.parse
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 import jwt
 from app.core.database import get_db
 from app.core.security import SECRET_KEY, ALGORITHM
 from app.models.schema import Device, User, Telemetry, Alarm, RawDataLog, Tenant
 from app.schemas import DeviceCreate, DeviceResponse, TelemetryCreate, TelemetryResponse, RawFileResponse, TenantUpdate
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from datetime import datetime, timezone 
 from app.core.mqtt_config import MQTTConfig
 
@@ -540,11 +543,14 @@ async def delete_alarm(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Lỗi database: {str(e)}")
 # ==========================================
-# 1. LẤY DANH SÁCH FILE CỦA THIẾT BỊ
+# 1. LẤY DANH SÁCH FILE CỦA THIẾT BỊ (HỖ TRỢ LỌC)
 # ==========================================
-@router.get("/api/devices/{device_id}/files", response_model=List[RawFileResponse])
+@router.get("/api/devices/{device_id}/files")
 def get_device_files(
     device_id: str,
+    file_type: Optional[str] = Query(None, description="Lọc theo loại: ubx hoặc bin"),
+    has_alarm: Optional[bool] = Query(None, description="True nếu chỉ muốn lấy file có tấn công"),
+    date_str: Optional[str] = Query(None, description="Lọc theo ngày: YYYY-MM-DD"),
     limit: int = 100, 
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -553,25 +559,43 @@ def get_device_files(
     if not device:
         raise HTTPException(status_code=404, detail="Thiết bị không tồn tại")
     
-    # ĐIỂM SỬA QUAN TRỌNG: Xóa bỏ điều kiện ưu tiên (current_user.role != "admin")
-    # Giờ đây, nếu ID công ty không khớp, sẽ lập tức bị chặn.
-    if device.tenant_id != current_user.tenant_id:
+    # Kiểm tra quyền sở hữu
+    if device.tenant_id != current_user.tenant_id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập file của thiết bị này")
 
-    logs = db.query(RawDataLog)\
-             .filter(RawDataLog.device_id == device.id)\
-             .options(load_only(RawDataLog.id, RawDataLog.timestamp, RawDataLog.file_path))\
-             .order_by(RawDataLog.timestamp.desc())\
-             .limit(limit)\
-             .all()
+    # Xây dựng Query Động (Dynamic Query)
+    query = db.query(RawDataLog).filter(RawDataLog.device_id == device.id)
     
+    if file_type:
+        query = query.filter(RawDataLog.file_type == file_type)
+    if has_alarm is not None:
+        query = query.filter(RawDataLog.has_alarm == has_alarm)
+    if date_str:
+        try:
+            # Lọc theo đúng ngày (Bỏ qua phần giờ phút)
+            query = query.filter(func.date(RawDataLog.start_time) == date_str)
+        except Exception:
+            pass
+
+    logs = query.order_by(RawDataLog.start_time.desc()).limit(limit).all()
+    
+    # Đóng gói dữ liệu trả về cho Frontend
+    result = []
     for log in logs:
-        log.file_name = os.path.basename(log.file_path)
+        result.append({
+            "id": log.id,
+            "file_name": os.path.basename(log.file_path),
+            "start_time": log.start_time,
+            "end_time": log.end_time,
+            "file_type": log.file_type,
+            "has_alarm": log.has_alarm,
+            "file_size_bytes": log.file_size_bytes
+        })
         
-    return logs
+    return result
 
 # ==========================================
-# 2. TẢI FILE VẬT LÝ VỀ MÁY
+# 2. TẢI FILE DƯỚI DẠNG NÉN (.ZIP) IN-MEMORY
 # ==========================================
 @router.get("/api/files/download/{file_id}")
 def download_raw_file(
@@ -579,27 +603,38 @@ def download_raw_file(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Lấy thông tin file từ DB
     log = db.query(RawDataLog).filter(RawDataLog.id == file_id).first()
     if not log:
         raise HTTPException(status_code=404, detail="Không tìm thấy bản ghi file")
 
-    # Kiểm tra quyền sở hữu thiết bị chứa file này
     device = db.query(Device).filter(Device.id == log.device_id).first()
     if device.tenant_id != current_user.tenant_id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Bạn không có quyền tải file này")
 
-    # Kiểm tra file có thực sự tồn tại trên ổ cứng server không
     if not os.path.exists(log.file_path):
         raise HTTPException(status_code=404, detail="File vật lý đã bị xóa hoặc không tìm thấy trên server")
 
-    # Trả về file cho trình duyệt tải về
     file_name = os.path.basename(log.file_path)
-    return FileResponse(
-        path=log.file_path, 
-        filename=file_name,
-        media_type='application/octet-stream'
+    zip_filename = f"{file_name}.zip"
+
+    # 🚀 Nén file vào RAM (Không ghi ra ổ cứng)
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Đưa file vật lý vào trong gói zip
+        zf.write(log.file_path, arcname=file_name)
+    
+    # Đưa con trỏ bộ nhớ về đầu để bắt đầu gửi
+    memory_file.seek(0)
+    encoded_filename = urllib.parse.quote(zip_filename)
+    
+    return StreamingResponse(
+        memory_file,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename*=utf-8''{encoded_filename}"
+        }
     )
+
 # ==========================================
 # 3. XÓA FILE (DATABASE & Ổ CỨNG)
 # ==========================================
@@ -609,24 +644,20 @@ def delete_raw_file(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # 1. Tìm bản ghi file trong DB
     log = db.query(RawDataLog).filter(RawDataLog.id == file_id).first()
     if not log:
         raise HTTPException(status_code=404, detail="Không tìm thấy file trong hệ thống!")
 
-    # 2. Kiểm tra quyền sở hữu thiết bị chứa file này
     device = db.query(Device).filter(Device.id == log.device_id).first()
     if device.tenant_id != current_user.tenant_id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Bạn không có quyền xóa file này!")
 
-    # 3. Xóa tận gốc file vật lý trên ổ cứng (nếu file còn tồn tại)
     if os.path.exists(log.file_path):
         try:
             os.remove(log.file_path)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Không thể xóa file vật lý: {str(e)}")
 
-    # 4. Xóa bản ghi trong Database
     db.delete(log)
     db.commit()
 
