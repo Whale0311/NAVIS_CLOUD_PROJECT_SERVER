@@ -295,39 +295,64 @@ const DeviceDetail = () => {
                     {activeTab === 'files' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                             
-                            {/* BỘ LỌC FILE */}
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', background: 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '12px', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#8b8d93', fontWeight: '600', marginRight: '10px' }}>
-                                    <Filter size={18}/> Bộ lọc:
+                            {/* BỘ LỌC FILE UI/UX MỚI */}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', background: 'rgba(0,0,0,0.2)', border: '1px dashed rgba(255,255,255,0.05)', padding: '15px 20px', borderRadius: '12px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#8b8d93', fontWeight: '600', fontSize: '0.9rem' }}>
+                                    <Filter size={16}/> Bộ lọc
                                 </div>
 
-                                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ ...inputStyle, padding: '10px 15px', width: 'auto', cursor: 'pointer' }}>
-                                    <option value="all">Tất cả định dạng</option>
-                                    <option value="ubx">Dữ liệu UBX</option>
-                                    <option value="bin">Dữ liệu Forensic (BIN)</option>
-                                </select>
+                                {/* Segmented Control cho Loại File */}
+                                <div className="segmented-control">
+                                    <button className={`seg-btn ${filterType === 'all' ? 'active' : ''}`} onClick={() => setFilterType('all')}>
+                                        Tất cả
+                                    </button>
+                                    <button className={`seg-btn ${filterType === 'ubx' ? 'active' : ''}`} onClick={() => setFilterType('ubx')}>
+                                        <FileCode2 size={14} /> UBX
+                                    </button>
+                                    <button className={`seg-btn ${filterType === 'bin' ? 'active' : ''}`} onClick={() => setFilterType('bin')}>
+                                        <FileArchive size={14} /> SDR (BIN)
+                                    </button>
+                                </div>
 
-                                <select value={filterAlarm} onChange={(e) => setFilterAlarm(e.target.value)} style={{ ...inputStyle, padding: '10px 15px', width: 'auto', cursor: 'pointer', color: filterAlarm === 'true' ? '#ef4444' : 'white' }}>
-                                    <option value="all">Mọi trạng thái</option>
-                                    <option value="true">🚨 Có chứa tấn công</option>
-                                </select>
+                                <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }}></div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', background: '#131517', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', padding: '0 10px' }}>
-                                    <Calendar size={16} color="#8b8d93" />
+                                {/* Segmented Control cho Cảnh báo */}
+                                <div className="segmented-control">
+                                    <button className={`seg-btn ${filterAlarm === 'all' ? 'active' : ''}`} onClick={() => setFilterAlarm('all')}>
+                                        Mọi trạng thái
+                                    </button>
+                                    <button className={`seg-btn alert-btn ${filterAlarm === 'true' ? 'active' : ''}`} onClick={() => setFilterAlarm('true')}>
+                                        <ShieldAlert size={14} /> Có Tấn Công
+                                    </button>
+                                </div>
+
+                                <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }}></div>
+
+                                {/* Custom Input Date */}
+                                <div className="custom-date-picker">
+                                    <Calendar size={16} color={filterDate ? "#10b981" : "#8b8d93"} />
                                     <input 
                                         type="date" 
                                         value={filterDate} 
                                         onChange={(e) => setFilterDate(e.target.value)} 
-                                        style={{ background: 'transparent', border: 'none', color: 'white', padding: '10px', outline: 'none', cursor: 'pointer' }}
+                                        style={{ color: filterDate ? '#10b981' : '#a3a3a3' }}
                                     />
+                                    {filterDate && (
+                                        <button className="clear-date-btn" onClick={() => setFilterDate('')}>
+                                            <X size={14} />
+                                        </button>
+                                    )}
                                 </div>
 
+                                {/* Nút Xóa Lọc Tổng (Chỉ hiện khi có lọc) */}
                                 {(filterType !== 'all' || filterAlarm !== 'all' || filterDate !== '') && (
                                     <button 
                                         onClick={() => { setFilterType('all'); setFilterAlarm('all'); setFilterDate(''); }}
-                                        style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', fontWeight: '600', padding: '10px' }}
+                                        style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', transition: 'background 0.2s' }}
+                                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                                     >
-                                        Xóa lọc
+                                        Xóa bộ lọc
                                     </button>
                                 )}
                             </div>
@@ -431,6 +456,24 @@ const DeviceDetail = () => {
                 .btn-download:hover { color: #10b981; background: rgba(16, 185, 129, 0.1); }
                 .btn-delete { color: #8b8d93; }
                 .btn-delete:hover { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+                /* Segmented Controls UI */
+                .segmented-control { display: flex; background: #131517; border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 4px; gap: 2px; }
+                .seg-btn { background: transparent; color: #8b8d93; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+                .seg-btn:hover:not(.active) { color: #fff; background: rgba(255,255,255,0.02); }
+                
+                .seg-btn.active { background: #2a2d32; color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+                .seg-btn.alert-btn.active { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+                /* Custom Date Picker UI */
+                .custom-date-picker { display: flex; align-items: center; background: #131517; border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 0 12px; height: 36px; transition: all 0.2s; position: relative; }
+                .custom-date-picker:focus-within { border-color: rgba(16, 185, 129, 0.5); }
+                .custom-date-picker input[type="date"] { background: transparent; border: none; outline: none; font-size: 0.85rem; font-weight: 600; cursor: pointer; padding: 0 8px; font-family: inherit; }
+                
+                /* Ẩn cái icon lịch xấu xí mặc định của trình duyệt web */
+                .custom-date-picker input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(1); opacity: 0; position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+                
+                .clear-date-btn { background: rgba(255,255,255,0.1); border: none; color: #fff; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; margin-left: 4px; }
+                .clear-date-btn:hover { background: #ef4444; }
             `}</style>
         </>
     );

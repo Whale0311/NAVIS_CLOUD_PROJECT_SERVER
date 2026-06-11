@@ -354,14 +354,14 @@ const Users = () => {
                                         <option value="admin">Quản trị viên Hệ thống (Super Admin)</option>
                                     </select>
                                 ) : (
-                                    <input type="text" disabled value="User (Tài xế/Chỉ xem)" style={{ ...inputStyle, background: 'rgba(255,255,255,0.02)', color: '#a3a3a3', cursor: 'not-allowed' }} />
+                                    <input type="text" disabled value="User (Chỉ xem)" style={{ ...inputStyle, background: 'rgba(255,255,255,0.02)', color: '#a3a3a3', cursor: 'not-allowed' }} />
                                 )}
                             </div>
                             {isSuperAdmin && newUser.role_in_tenant === 'tenant_admin' && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px', marginBottom: '25px', background: 'rgba(16, 185, 129, 0.05)', padding: '15px', borderRadius: '10px', border: '1px dashed rgba(16, 185, 129, 0.2)' }}>
                                     <div>
                                         <label style={{ display: 'block', color: '#10b981', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '600' }}>Tên Tổ chức</label>
-                                        <input type="text" required placeholder="VD: Vận tải Hải Vân" value={newUser.tenant_name || ''} onChange={(e) => setNewUser({...newUser, tenant_name: e.target.value})} style={{...inputStyle, padding: '10px'}} />
+                                        <input type="text" required placeholder="VD: Vận tải SOICT" value={newUser.tenant_name || ''} onChange={(e) => setNewUser({...newUser, tenant_name: e.target.value})} style={{...inputStyle, padding: '10px'}} />
                                     </div>
                                     <div>
                                         <label style={{ display: 'block', color: '#10b981', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '600' }}>Số thiết bị</label>
