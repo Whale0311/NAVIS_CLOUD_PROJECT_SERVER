@@ -130,13 +130,24 @@ class Alarm(Base):
 class RawDataLog(Base):
     __tablename__ = "raw_data_logs"
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
+    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), index=True)
     
-    timestamp = Column(DateTime(timezone=True), index=True)
-    seq = Column(Integer)
-    data_type = Column(String) 
+    # ==========================================
+    # 🕒 KHUNG THỜI GIAN (1 TIẾNG 1 FILE)
+    # ==========================================
+    start_time = Column(DateTime(timezone=True), index=True, nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=True)
     
-    file_path = Column(String) 
-    file_size_bytes = Column(Integer)
+    # ==========================================
+    # 📂 PHÂN LOẠI & ĐÁNH DẤU
+    # ==========================================
+    file_type = Column(String, nullable=False) # 'ubx' hoặc 'bin'
+    has_alarm = Column(Boolean, default=False, index=True) # 🚨 Cờ đánh dấu file có chứa tấn công
+    
+    # ==========================================
+    # 💾 THÔNG TIN VẬT LÝ
+    # ==========================================
+    file_path = Column(String, nullable=False) 
+    file_size_bytes = Column(Integer, default=0)
     
     device = relationship("Device", back_populates="raw_data_logs")
