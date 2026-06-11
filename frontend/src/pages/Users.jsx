@@ -13,33 +13,24 @@ const Users = () => {
     const currentEmail = user?.email;
 
     const [usersList, setUsersList] = useState([]);
-    
-    // TÍNH NĂNG MỚI: TÌM KIẾM
     const [searchTerm, setSearchTerm] = useState('');
     
-    // Quản lý Modal Thêm mới
+    // STATE MỚI: Quản lý User đang được click để mở Menu Tùy chọn (Action Modal)
+    const [actionModalUser, setActionModalUser] = useState(null);
+
+    // Quản lý các Modal chức năng
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [newUser, setNewUser] = useState({ 
-        email: '', 
-        password: '', 
-        role: isSuperAdmin ? 'admin' : 'user',
-        role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer', 
-        tenant_name: '', 
-        max_devices: 5  
+        email: '', password: '', role: isSuperAdmin ? 'admin' : 'user',
+        role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer', tenant_name: '', max_devices: 5  
     });
 
-    // MỚI: LOGIC ĐỔI MẬT KHẨU (BẢN THÂN vs RESET)
     const [isPassModalOpen, setIsPassModalOpen] = useState(false);
     const [targetUserId, setTargetUserId] = useState(null);
     const [passwords, setPasswords] = useState({ old: '', new: '', confirm: '' });
 
-    // Quản lý Modal Cấu hình Tenant
     const [isTenantModalOpen, setIsTenantModalOpen] = useState(false);
-    const [editTenantData, setEditTenantData] = useState({
-        tenant_id: null,
-        max_devices: 5,
-        is_active: true
-    });
+    const [editTenantData, setEditTenantData] = useState({ tenant_id: null, max_devices: 5, is_active: true });
 
     useEffect(() => {
         fetchUsers();
@@ -88,8 +79,7 @@ const Users = () => {
             if (res.ok) {
                 setIsAddModalOpen(false);
                 setNewUser({ 
-                    email: '', password: '', role: 'user', 
-                    role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer',
+                    email: '', password: '', role: 'user', role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer',
                     tenant_name: '', max_devices: 5
                 });
                 fetchUsers();
@@ -104,7 +94,6 @@ const Users = () => {
     const handleChangePassword = async (e) => {
         e.preventDefault();
         
-        // KIỂM TRA LOGIC NẾU LÀ TỰ ĐỔI PASS CỦA BẢN THÂN
         if (targetUserId === user?.id) {
             if (!passwords.old) { toast.error("Vui lòng nhập mật khẩu cũ!"); return; }
             if (passwords.new !== passwords.confirm) { toast.error("Mật khẩu xác nhận không khớp!"); return; }
@@ -115,11 +104,7 @@ const Users = () => {
             const res = await fetch(`${API_URL}/${targetUserId}/password`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                // Backend hiện tại của bạn không cần old_password, nhưng ta vẫn truyền xuống nếu sau này Backend update
-                body: JSON.stringify({ 
-                    new_password: passwords.new,
-                    old_password: passwords.old 
-                })
+                body: JSON.stringify({ new_password: passwords.new, old_password: passwords.old })
             });
             if (res.ok) {
                 setIsPassModalOpen(false);
@@ -157,16 +142,12 @@ const Users = () => {
             const res = await fetch(`/api/tenants/${editTenantData.tenant_id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                body: JSON.stringify({ 
-                    max_devices: editTenantData.max_devices, 
-                    is_active: editTenantData.is_active 
-                })
+                body: JSON.stringify({ max_devices: editTenantData.max_devices, is_active: editTenantData.is_active })
             });
-            
             if (res.ok) {
                 setIsTenantModalOpen(false);
                 toast.success("Đã cập nhật thông số Tổ chức thành công!");
-                fetchUsers(); // Refresh danh sách để cập nhật trạng thái mới nhất
+                fetchUsers(); 
             } else {
                 const err = await res.json();
                 toast.error("Lỗi: " + (err.detail || "Không thể cập nhật"));
@@ -174,18 +155,24 @@ const Users = () => {
         } catch (error) { toast.error("Lỗi kết nối Server"); }
     };
 
-    // BỘ LỌC TÌM KIẾM THEO EMAIL HOẶC TỔ CHỨC
     const filteredUsers = usersList.filter(u => 
         u.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
         (u.tenant_name && u.tenant_name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     // ==========================================
-    // STYLES
+    // STYLES TÁI SỬ DỤNG
     // ==========================================
-    const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center' };
-    const modalBoxStyle = { background: '#1c1e22', padding: '32px', borderRadius: '16px', width: '420px', border: '1px solid rgba(16, 185, 129, 0.3)', position: 'relative', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' };
+    const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center' };
+    const modalBoxStyle = { background: '#1c1e22', padding: '32px', borderRadius: '16px', width: '420px', border: '1px solid rgba(16, 185, 129, 0.3)', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)' };
     const inputStyle = { width: '100%', padding: '14px', background: '#131517', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', color: 'white', outline: 'none', transition: 'border-color 0.3s' };
+
+    const actionBtnStyle = () => ({
+        width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 20px', 
+        background: 'rgba(255,255,255,0.03)', border: `1px solid rgba(255,255,255,0.05)`, 
+        borderRadius: '12px', color: '#e2e8f0', fontSize: '1.05rem', fontWeight: '500', 
+        cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left'
+    });
 
     return (
         <>
@@ -206,31 +193,18 @@ const Users = () => {
                         </div>
                         
                         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                            {/* THANH TÌM KIẾM */}
                             <div style={{ position: 'relative' }}>
                                 <Search size={18} color="#8b8d93" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
                                 <input 
-                                    type="text" 
-                                    placeholder="Tìm Email hoặc Tổ chức..." 
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    type="text" placeholder="Tìm Email hoặc Tổ chức..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                                     style={{ ...inputStyle, width: '250px', paddingLeft: '40px', padding: '10px 14px 10px 40px' }}
                                 />
                             </div>
 
-                            <button 
-                                onClick={() => {
-                                    setNewUser({ 
-                                        email: '', password: '', role: isSuperAdmin ? 'admin' : 'user', 
-                                        role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer', 
-                                        tenant_name: '', max_devices: 5 
-                                    });
-                                    setIsAddModalOpen(true);
-                                }}
-                                style={{ background: '#10b981', color: '#131517', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}
-                                onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                                onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                            >
+                            <button onClick={() => {
+                                setNewUser({ email: '', password: '', role: isSuperAdmin ? 'admin' : 'user', role_in_tenant: isSuperAdmin ? 'tenant_admin' : 'viewer', tenant_name: '', max_devices: 5 });
+                                setIsAddModalOpen(true);
+                            }} className="btn-primary">
                                 <UserPlus size={20} /> Thêm Mới
                             </button>
                         </div>
@@ -240,13 +214,10 @@ const Users = () => {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>
                                 <tr>
-                                    <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Email</th>
-                                    {isSuperAdmin && <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Tổ chức</th>}
-                                    {/* MỚI: CỘT TRẠNG THÁI */}
-                                    {isSuperAdmin && <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Trạng thái</th>}
-                                    
-                                    <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Cấp bậc</th>
-                                    <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', textAlign: 'right' }}>Hành động</th>
+                                    <th className="table-header">Email</th>
+                                    {isSuperAdmin && <th className="table-header">Tổ chức</th>}
+                                    {isSuperAdmin && <th className="table-header">Trạng thái</th>}
+                                    <th className="table-header">Cấp bậc</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -255,7 +226,7 @@ const Users = () => {
                                     const isRootAdmin = u.role === 'admin';
 
                                     return (
-                                        <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background-color 0.2s' }}>
+                                        <tr key={u.id} className="user-row" onClick={() => setActionModalUser(u)}>
                                             <td style={{ padding: '18px 10px', fontWeight: '600', color: '#ffffff' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                                     {u.email}
@@ -273,7 +244,6 @@ const Users = () => {
                                                 </td>
                                             )}
 
-                                            {/* HIỂN THỊ TRẠNG THÁI TENANT */}
                                             {isSuperAdmin && (
                                                 <td style={{ padding: '18px 10px', color: '#e2e8f0' }}>
                                                     {isRootAdmin ? '' : (
@@ -299,48 +269,6 @@ const Users = () => {
                                                     </span>
                                                 )}
                                             </td>
-                                            <td style={{ padding: '18px 10px', textAlign: 'right' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                                                    <button 
-                                                        onClick={() => { 
-                                                            setTargetUserId(u.id); 
-                                                            setPasswords({ old: '', new: '', confirm: '' }); 
-                                                            setIsPassModalOpen(true); 
-                                                        }}
-                                                        style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#a3a3a3', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
-                                                        onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff'; }}
-                                                        onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#a3a3a3'; }}
-                                                    >
-                                                        <KeyRound size={16} /> Đổi MK
-                                                    </button>
-
-                                                    {/* NÚT CẤU HÌNH DÀNH CHO SUPER ADMIN */}
-                                                    {isSuperAdmin && u.role_in_tenant === 'tenant_admin' && (
-                                                        <button 
-                                                            onClick={() => {
-                                                                setEditTenantData({ tenant_id: u.tenant_id, max_devices: u.max_devices || 5, is_active: u.tenant_status ?? true }); 
-                                                                setIsTenantModalOpen(true);
-                                                            }}
-                                                            style={{ background: 'rgba(168, 85, 247, 0.1)', border: 'none', color: '#a855f7', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
-                                                            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(168, 85, 247, 0.2)'; }}
-                                                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)'; }}
-                                                        >
-                                                            <Settings size={16} /> Cấu hình
-                                                        </button>
-                                                    )}
-
-                                                    {(!isSelf && (isSuperAdmin || !isRootAdmin)) && (
-                                                        <button 
-                                                            onClick={() => handleDeleteUser(u.id, u.email)}
-                                                            style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
-                                                            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; e.currentTarget.style.color = '#ef4444'; }}
-                                                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; e.currentTarget.style.color = '#ef4444'; }}
-                                                        >
-                                                            <Trash2 size={16} /> Xóa
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
                                         </tr>
                                     );
                                 })}
@@ -350,10 +278,63 @@ const Users = () => {
                 </div>
             </div>
 
-            {/* MODAL THÊM NGƯỜI DÙNG */}
+            {/* MODAL MENU THAO TÁC (Hiện khi click vào dòng) */}
+            {actionModalUser && (
+                <div style={modalOverlayStyle} onClick={() => setActionModalUser(null)}>
+                    <div style={{ ...modalBoxStyle, width: '380px', padding: '25px' }} onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => setActionModalUser(null)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer' }}>
+                            <X size={24} />
+                        </button>
+
+                        <h3 style={{ color: '#fff', marginTop: 0, marginBottom: '20px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            Tùy chọn: <span style={{ color: '#10b981' }}>{actionModalUser.email}</span>
+                        </h3>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            
+                            {/* Nút Đổi MK: Ai cũng có thể thao tác (tự đổi hoặc admin reset) */}
+                            <button className="action-btn pass-btn" onClick={() => {
+                                setTargetUserId(actionModalUser.id);
+                                setPasswords({ old: '', new: '', confirm: '' });
+                                setActionModalUser(null);
+                                setIsPassModalOpen(true);
+                            }} style={actionBtnStyle()}>
+                                <KeyRound size={20} /> Đổi mật khẩu
+                            </button>
+
+                            {/* Nút Cấu hình: Chỉ hiện nếu Super Admin đang chọn một Giám đốc */}
+                            {isSuperAdmin && actionModalUser.role_in_tenant === 'tenant_admin' && (
+                                <button className="action-btn config-btn" onClick={() => {
+                                    setEditTenantData({ tenant_id: actionModalUser.tenant_id, max_devices: actionModalUser.max_devices || 5, is_active: actionModalUser.tenant_status ?? true });
+                                    setActionModalUser(null);
+                                    setIsTenantModalOpen(true);
+                                }} style={actionBtnStyle()}>
+                                    <Settings size={20} /> Cấu hình Tổ chức
+                                </button>
+                            )}
+
+                            {/* Nút Xóa: Chỉ hiện nếu không phải bản thân và có quyền xóa */}
+                            {actionModalUser.email !== currentEmail && (isSuperAdmin || actionModalUser.role !== 'admin') && (
+                                <button className="action-btn delete-btn" onClick={() => {
+                                    const { id, email } = actionModalUser;
+                                    setActionModalUser(null);
+                                    handleDeleteUser(id, email);
+                                }} style={actionBtnStyle()}>
+                                    <Trash2 size={20} /> Xóa tài khoản
+                                </button>
+                            )}
+
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CÁC MODAL CHỨC NĂNG (Giao diện giữ nguyên) */}
+            
+            {/* Modal Thêm Người Dùng */}
             {isAddModalOpen && (
                 <div style={modalOverlayStyle}>
-                    <div style={modalBoxStyle}>
+                    <div style={{...modalBoxStyle, width: '420px'}}>
                         <button onClick={() => setIsAddModalOpen(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer' }}><X size={24} /></button>
                         <h2 style={{ color: '#ffffff', marginBottom: '25px', fontSize: '1.4rem' }}>Thêm <span style={{ color: '#10b981' }}>Tài Khoản</span></h2>
                         <form onSubmit={handleAddUser}>
@@ -365,7 +346,6 @@ const Users = () => {
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Mật khẩu</label>
                                 <input type="password" required value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} style={inputStyle} />
                             </div>
-                            
                             <div style={{ marginBottom: '20px' }}>
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Cấp bậc (Role)</label>
                                 {isSuperAdmin ? (
@@ -377,7 +357,6 @@ const Users = () => {
                                     <input type="text" disabled value="User (Tài xế/Chỉ xem)" style={{ ...inputStyle, background: 'rgba(255,255,255,0.02)', color: '#a3a3a3', cursor: 'not-allowed' }} />
                                 )}
                             </div>
-
                             {isSuperAdmin && newUser.role_in_tenant === 'tenant_admin' && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px', marginBottom: '25px', background: 'rgba(16, 185, 129, 0.05)', padding: '15px', borderRadius: '10px', border: '1px dashed rgba(16, 185, 129, 0.2)' }}>
                                     <div>
@@ -390,7 +369,6 @@ const Users = () => {
                                     </div>
                                 </div>
                             )}
-
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                                 <button type="button" onClick={() => setIsAddModalOpen(false)} style={{ background: 'transparent', color: '#8b8d93', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600' }}>Hủy</button>
                                 <button type="submit" style={{ background: '#10b981', color: '#131517', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700' }}>Xác nhận</button>
@@ -400,10 +378,10 @@ const Users = () => {
                 </div>
             )}
 
-            {/* MODAL CẤU HÌNH TENANT */}
+            {/* Modal Cấu Hình Tenant */}
             {isTenantModalOpen && (
                 <div style={modalOverlayStyle}>
-                    <div style={modalBoxStyle}>
+                    <div style={{...modalBoxStyle, width: '420px'}}>
                         <button onClick={() => setIsTenantModalOpen(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer' }}><X size={24} /></button>
                         <h2 style={{ color: '#ffffff', marginBottom: '25px', fontSize: '1.4rem' }}>Cấu hình <span style={{ color: '#a855f7' }}>Tổ Chức</span></h2>
                         <form onSubmit={handleUpdateTenant}>
@@ -431,44 +409,30 @@ const Users = () => {
                 </div>
             )}
 
-            {/* MODAL ĐỔI MẬT KHẨU */}
+            {/* Modal Đổi Mật Khẩu */}
             {isPassModalOpen && (
                 <div style={modalOverlayStyle}>
-                    <div style={modalBoxStyle}>
+                    <div style={{...modalBoxStyle, width: '420px'}}>
                         <button onClick={() => setIsPassModalOpen(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer' }}><X size={24} /></button>
                         <h2 style={{ color: '#ffffff', marginBottom: '25px', fontSize: '1.4rem' }}>Đổi <span style={{ color: '#10b981' }}>Mật Khẩu</span></h2>
                         <form onSubmit={handleChangePassword}>
-                            
-                            {/* NẾU LÀ TỰ ĐỔI MẬT KHẨU BẢN THÂN -> YÊU CẦU MK CŨ */}
                             {targetUserId === user?.id && (
                                 <div style={{ marginBottom: '20px' }}>
                                     <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Mật khẩu hiện tại</label>
                                     <input type="password" required minLength="6" placeholder="Nhập mật khẩu cũ..." value={passwords.old} onChange={(e) => setPasswords({...passwords, old: e.target.value})} style={inputStyle} />
                                 </div>
                             )}
-
                             <div style={{ marginBottom: targetUserId === user?.id ? '20px' : '25px' }}>
                                 <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Mật khẩu mới</label>
                                 <input type="password" required minLength="6" placeholder="Nhập mật khẩu mới..." value={passwords.new} onChange={(e) => setPasswords({...passwords, new: e.target.value})} style={inputStyle} />
                             </div>
-
-                            {/* NẾU LÀ TỰ ĐỔI MẬT KHẨU BẢN THÂN -> YÊU CẦU XÁC NHẬN */}
                             {targetUserId === user?.id && (
                                 <div style={{ marginBottom: '25px' }}>
                                     <label style={{ display: 'block', color: '#8b8d93', marginBottom: '8px', fontSize: '0.9rem', fontWeight: '500' }}>Xác nhận mật khẩu mới</label>
-                                    <input 
-                                        type="password" 
-                                        required 
-                                        minLength="6" 
-                                        placeholder="Nhập lại mật khẩu mới..." 
-                                        value={passwords.confirm} 
-                                        onChange={(e) => setPasswords({...passwords, confirm: e.target.value})} 
-                                        style={{ ...inputStyle, borderColor: (passwords.confirm && passwords.new !== passwords.confirm) ? '#ef4444' : 'rgba(255,255,255,0.05)' }} 
-                                    />
+                                    <input type="password" required minLength="6" placeholder="Nhập lại mật khẩu mới..." value={passwords.confirm} onChange={(e) => setPasswords({...passwords, confirm: e.target.value})} style={{ ...inputStyle, borderColor: (passwords.confirm && passwords.new !== passwords.confirm) ? '#ef4444' : 'rgba(255,255,255,0.05)' }} />
                                     {(passwords.confirm && passwords.new !== passwords.confirm) && <span style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '5px', display: 'block' }}>Mật khẩu không khớp!</span>}
                                 </div>
                             )}
-
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                                 <button type="button" onClick={() => setIsPassModalOpen(false)} style={{ background: 'transparent', color: '#8b8d93', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600' }}>Hủy</button>
                                 <button type="submit" style={{ background: '#10b981', color: '#131517', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700' }}>Cập nhật</button>
@@ -477,6 +441,21 @@ const Users = () => {
                     </div>
                 </div>
             )}
+
+            <style>{`
+                /* CSS UX Cải tiến cho Users */
+                .table-header { color: #8b8d93; font-size: 0.85rem; text-transform: uppercase; padding: 15px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+                .user-row { cursor: pointer; transition: all 0.2s ease; border-bottom: 1px solid rgba(255,255,255,0.03); }
+                .user-row:hover { background-color: rgba(255,255,255,0.02); }
+                
+                .btn-primary { background: #10b981; color: #131517; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
+                .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(16, 185, 129, 0.3); }
+
+                /* Action Button Hovers trong Modal */
+                .action-btn:hover.pass-btn { border-color: rgba(59, 130, 246, 0.5); color: #3b82f6; background: rgba(59, 130, 246, 0.05); }
+                .action-btn:hover.config-btn { border-color: rgba(168, 85, 247, 0.5); color: #a855f7; background: rgba(168, 85, 247, 0.05); }
+                .action-btn:hover.delete-btn { border-color: rgba(239, 68, 68, 0.5); color: #ef4444; background: rgba(239, 68, 68, 0.05); }
+            `}</style>
         </>
     );
 };

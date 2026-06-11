@@ -1,30 +1,21 @@
 // src/pages/Alarms.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BellRing, AlertOctagon, AlertTriangle, CheckCircle, ShieldAlert, MoreVertical, Trash2, Check } from 'lucide-react';
+import { BellRing, AlertOctagon, AlertTriangle, CheckCircle, ShieldAlert, Trash2, Check } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { useAuth } from '../context/AuthContext'; // IMPORT BỘ XỬ LÝ QUYỀN
+import { useAuth } from '../context/AuthContext';
 
 const API_URL = "/api/alarms";
 
 const Alarms = () => {
     const navigate = useNavigate();
-    const { user } = useAuth(); // Lấy thông tin user hiện tại
+    const { user } = useAuth(); 
     
     // Quyền hạn: Chỉ Admin hoặc Giám đốc/Nhân viên Vận hành mới được Xóa/Xử lý cảnh báo
     const canManageAlarms = user?.role === 'admin' || ['tenant_admin', 'operator'].includes(user?.role_in_tenant);
 
     const [alarms, setAlarms] = useState([]);
-    const [openMenuId, setOpenMenuId] = useState(null);
-
-    useEffect(() => {
-        const handleClickOutside = () => {
-            setOpenMenuId(null);
-        };
-        document.addEventListener('click', handleClickOutside);
-        return () => document.removeEventListener('click', handleClickOutside);
-    }, []);
 
     // 1. HÀM TẢI DỮ LIỆU TỪ DB 
     const loadAlarms = async () => {
@@ -96,13 +87,12 @@ const Alarms = () => {
         try {
             const response = await fetch(`/api/alarms/${alarmId}`, {
                 method: "DELETE",
-                headers: { 
-                    "Authorization": `Bearer ${token}` 
-                }
+                headers: { "Authorization": `Bearer ${token}` }
             });
 
             if (response.ok) {
                 setAlarms(prevAlarms => prevAlarms.filter(alarm => alarm.id !== alarmId));
+                toast.success("Đã xóa cảnh báo!");
             } else {
                 const errData = await response.json();
                 toast.error(`Lỗi: ${errData.detail}`);
@@ -131,6 +121,7 @@ const Alarms = () => {
     };
 
     return (
+        <>
             <div className="dashboard-container">
                 <div className="header-section">
                     <h1 className="header-title">System Alarms & Events</h1>
@@ -162,22 +153,20 @@ const Alarms = () => {
 
                 <div style={{ backgroundColor: '#1c1e22', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)', padding: '30px' }}>
                     <div style={{ fontSize: '1.2rem', fontWeight: '600', color: '#ffffff', marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <ShieldAlert size={24} color="#10b981" />
-                        Lịch sử sự kiện
+                        <ShieldAlert size={24} color="#10b981" /> Lịch sử sự kiện
                     </div>
                     
-                    <div style={{ overflow: 'visible', paddingBottom: '80px' }}>
+                    <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>
                                 <tr>
-                                    <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Thời gian</th>
-                                    <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Thiết bị (ID)</th>
-                                    <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Mức độ</th>
-                                    <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Mô tả sự kiện</th>
-                                    <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' }}>Trạng thái</th>
-                                    
-                                    {/* Chỉ hiển thị cột Hành động nếu có quyền */}
-                                    {canManageAlarms && <th style={{ color: '#8b8d93', padding: '15px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', textAlign: 'center' }}>Hành động</th>}
+                                    <th className="table-header">Thời gian</th>
+                                    <th className="table-header">Thiết bị (ID)</th>
+                                    <th className="table-header">Mức độ</th>
+                                    <th className="table-header">Mô tả sự kiện</th>
+                                    <th className="table-header">Trạng thái</th>
+                                    {/* Cột Hành động trống tiêu đề để UI thanh thoát hơn */}
+                                    {canManageAlarms && <th className="table-header" style={{ width: '100px', textAlign: 'right' }}></th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -189,7 +178,7 @@ const Alarms = () => {
                                     </tr>
                                 ) : (
                                     alarms.slice(0, 50).map(alarm => (
-                                        <tr key={alarm.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background-color 0.2s' }}>
+                                        <tr key={alarm.id} className="alarm-row">
                                             <td style={{ padding: '18px 10px', color: '#a3a3a3', fontSize: '0.95rem' }}>{formatTime(alarm.time)}</td>
                                             <td style={{ padding: '18px 10px', fontWeight: '600', color: '#ffffff' }}>
                                                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -216,51 +205,27 @@ const Alarms = () => {
                                                 )}
                                             </td>
                                             
-                                            {/* Chỉ render Nút 3 chấm nếu có quyền */}
+                                            {/* HIỂN THỊ TRỰC TIẾP NÚT ACTION (THAY VÌ MENU 3 CHẤM) */}
                                             {canManageAlarms && (
-                                                <td style={{ padding: '18px 10px', textAlign: 'center', position: 'relative' }}>
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setOpenMenuId(openMenuId === alarm.id ? null : alarm.id);
-                                                        }}
-                                                        style={{ background: 'transparent', border: 'none', color: '#8b8d93', cursor: 'pointer', padding: '5px' }}
-                                                    >
-                                                        <MoreVertical size={20} />
-                                                    </button>
-
-                                                    {openMenuId === alarm.id && (
-                                                        <div style={{ position: 'absolute', right: '30px', top: '15px', background: '#2a2d32', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '5px', width: '130px', zIndex: 10, boxShadow: '0 10px 15px rgba(0,0,0,0.5)' }}>
-                                                            
-                                                            {alarm.status === 'Active' && (
-                                                                <button 
-                                                                    onClick={(e) => { 
-                                                                        e.stopPropagation(); 
-                                                                        handleResolve(alarm.id); 
-                                                                        setOpenMenuId(null); 
-                                                                    }}
-                                                                    style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px' }}
-                                                                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                                                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                >
-                                                                    <Check size={16} /> Xử lý
-                                                                </button>
-                                                            )}
-
+                                                <td style={{ padding: '18px 10px', textAlign: 'right' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                                        {alarm.status === 'Active' && (
                                                             <button 
-                                                                onClick={(e) => { 
-                                                                    e.stopPropagation(); 
-                                                                    handleDeleteAlarm(alarm.id); 
-                                                                    setOpenMenuId(null); 
-                                                                }}
-                                                                style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', marginTop: '2px' }}
-                                                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                className="btn-action btn-resolve"
+                                                                onClick={(e) => { e.stopPropagation(); handleResolve(alarm.id); }}
+                                                                title="Đánh dấu đã xử lý"
                                                             >
-                                                                <Trash2 size={16} /> Xóa
+                                                                <Check size={18} />
                                                             </button>
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                        <button 
+                                                            className="btn-action btn-delete"
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteAlarm(alarm.id); }}
+                                                            title="Xóa cảnh báo"
+                                                        >
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             )}
                                         </tr>
@@ -271,6 +236,24 @@ const Alarms = () => {
                     </div>
                 </div>
             </div>
+
+            <style>{`
+                /* CSS UX Cải tiến cho Alarms */
+                .table-header { color: #8b8d93; font-size: 0.85rem; text-transform: uppercase; padding: 15px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+                .alarm-row { transition: all 0.2s ease; border-bottom: 1px solid rgba(255,255,255,0.03); }
+                .alarm-row:hover { background-color: rgba(255,255,255,0.02); }
+                
+                .btn-action { background: transparent; border: none; padding: 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+                
+                /* Nút Resolve (Màu xám -> Xanh lá khi hover) */
+                .btn-resolve { color: #52525b; }
+                .btn-resolve:hover { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+                
+                /* Nút Delete (Màu xám -> Đỏ khi hover) */
+                .btn-delete { color: #52525b; }
+                .btn-delete:hover { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+            `}</style>
+        </>
     );
 };
 

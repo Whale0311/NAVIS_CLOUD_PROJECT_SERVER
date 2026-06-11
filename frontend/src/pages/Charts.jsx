@@ -18,12 +18,15 @@ ChartJS.defaults.font.family = "'Inter', system-ui, sans-serif";
 const MAX_HISTORY = 60;
 
 const calculateSkyplot = (signals) => {
-    let counts = [0, 0, 0, 0];
+    // Tăng từ 4 lên 6 phần tử (cho 6 hệ vệ tinh)
+    let counts = [0, 0, 0, 0, 0, 0]; 
     (signals || []).forEach(s => {
         if (s.prn.startsWith('G')) counts[0]++;
         else if (s.prn.startsWith('R')) counts[1]++;
         else if (s.prn.startsWith('E')) counts[2]++;
-        else if (s.prn.startsWith('C')) counts[3]++;
+        else if (s.prn.startsWith('B') || s.prn.startsWith('C')) counts[3]++;
+        else if (s.prn.startsWith('J')) counts[4]++; // Thêm QZSS (Nhật Bản)
+        else if (s.prn.startsWith('S')) counts[5]++; // Thêm SBAS (Sửa lỗi)
     });
     return counts;
 };
@@ -39,7 +42,7 @@ const Charts = () => {
     const chartStateRef = useRef({
         trendLabels: Array(MAX_HISTORY).fill('--:--'),
         trendData: Array(MAX_HISTORY).fill(null),
-        skyplotCounts: [0, 0, 0, 0],
+        skyplotCounts: [0, 0, 0, 0, 0, 0], // Sửa thành 6 số 0
         historyBuffer: Array(MAX_HISTORY).fill({ time: '', signals: {} })
     });
     
@@ -218,10 +221,18 @@ const Charts = () => {
     };
 
     const skyplotConfig = {
-        labels: ['GPS (G)', 'GLONASS (R)', 'Galileo (E)', 'BeiDou (C)'],
+        // Thêm nhãn cho QZSS và SBAS
+        labels: ['GPS (G)', 'GLONASS (R)', 'Galileo (E)', 'BeiDou (C)', 'QZSS (J)', 'SBAS (S)'],
         datasets: [{
             data: chartState.skyplotCounts,
-            backgroundColor: ['rgba(251, 191, 36, 0.8)','rgba(239, 68, 68, 0.8)','rgba(59, 130, 246, 0.8)','rgba(16, 185, 129, 0.8)'],
+            backgroundColor: [
+                'rgba(251, 191, 36, 0.8)',   // Vàng (GPS)
+                'rgba(239, 68, 68, 0.8)',    // Đỏ (GLONASS)
+                'rgba(59, 130, 246, 0.8)',   // Xanh dương (Galileo)
+                'rgba(16, 185, 129, 0.8)',   // Xanh lá (BeiDou)
+                'rgba(168, 85, 247, 0.8)',   // Tím (QZSS)
+                'rgba(236, 72, 153, 0.8)'    // Hồng (SBAS)
+            ],
             borderColor: '#1c1e22', 
             borderWidth: 3
         }]
