@@ -17,7 +17,7 @@ Frontend của Navis Cloud cung cấp:
 
 ## ✨ Tính Năng Chính
 
-| Tính năng | Mô tả |
+| Tính năng | Mô Tả |
 |----------|--------|
 | ⚡ **Vite** | Công cụ build siêu nhanh, HMR (Hot Module Replacement) |
 | 🏢 **Multi-Tenant Support** | Giao diện riêng cho mỗi Tenant, tenant isolation |
@@ -36,14 +36,14 @@ Frontend của Navis Cloud cung cấp:
 
 ```
 React 19          - UI library
-Vite              - Build tool
+Vite 8.0          - Build tool
 React Router 7    - Client routing
 Chart.js 4.5      - Data visualization
 Plotly.js 3.5     - Advanced charts
 Leaflet 1.9       - Map library
 Lucide React 1.8  - Icon library
 React Toastify    - Notifications
-ESLint            - Code quality
+ESLint 9.0        - Code quality
 Node.js 18+       - Runtime
 npm 9+            - Package manager
 ```
@@ -167,6 +167,7 @@ frontend/
 │   │   ├── Map.jsx            # Bản đồ vị trí
 │   │   ├── Alarms.jsx         # Quản lý Cảnh báo
 │   │   ├── Users.jsx          # Quản lý Người dùng
+│   │   ├── Tenants.jsx        # Quản lý Tenants (SuperAdmin)
 │   │   └── Login.jsx          # Trang Đăng nhập
 │   │
 │   ├── services/              # API services (Axios calls)
@@ -189,13 +190,20 @@ frontend/
 └── .env.local                 # Environment variables (git ignored)
 ```
 
-## 🎯 Key Pages
+## 🎯 Key Pages & Routes
 
-### 📊 Dashboard (`/dashboard`)
-- Overview metrics (device count, alerts, etc.)
+### 🔐 Login (`/login`)
+- User authentication (email + password)
+- JWT token management
+- Remember me option
+- Error handling & validation
+
+### 📊 Dashboard (`/`)
+- Overview metrics (device count, active alarms, etc.)
 - Latest telemetry from all devices
 - System health status
 - Quick access widgets
+- Real-time status updates
 
 ### 🏢 Tenants (`/tenants`) - SuperAdmin Only
 - List of all Tenants (Companies)
@@ -203,49 +211,60 @@ frontend/
 - Tenant device limits management
 - Tenant subscription info
 - Enable/disable tenant actions
+- Create/edit/delete tenant
 
-### 🚀 Devices (`/devices`) - Tenant Admin & above
-- List of devices (filtered by tenant)
-- Device status indicators
+### 🚀 Devices (`/devices`)
+- List of devices (filtered by tenant/user)
+- Device status indicators (online/offline)
 - Device filtering & search
-- Device actions (edit, delete, detail)
-- Assign device to user/operator
+- Device actions (edit, delete, assign, detail)
+- Assign device to user
+- Real-time device status
+
+### 📋 Device Detail (`/devices/:id`)
+- Complete device information
+- Telemetry data & history
+- Device settings
+- Assignment management
+- Device actions
 
 ### 📈 Charts (`/charts`)
 - Real-time data visualization
 - Multiple chart types (line, bar, area)
 - Time range selector
+- Device filtering
 - Export data functionality
+- Custom date range
 
 ### 🗺️ Map (`/map`)
 - Interactive map with device markers
 - Device location pins
 - Click marker for device details
 - Real-time location updates
+- Zoom & pan controls
+- Marker clustering
 
 ### 🚨 Alarms (`/alarms`)
 - List of all alerts/alarms
-- Alarm status (active, resolved)
+- Alarm status (active, resolved, acknowledged)
+- Alarm severity levels (info, warning, critical)
 - Alarm filtering & sorting
 - Alarm detail modal
+- Mark as resolved action
 
 ### 👥 Users (`/users`)
 - User management (admin only)
 - Add/edit/delete users
-- Role assignment
+- Role assignment (tenant_admin, operator, viewer)
 - User status management
+- Password management
+- User assignment to devices
 
-### 🔐 Login (`/login`)
-- User authentication
-- Email/password login
-- JWT token management
-- Remember me option
-
-## � Role-Based UI Rendering (Multi-Tenant)
+## 🔐 Role-Based UI Rendering (Multi-Tenant)
 
 Frontend tự động render giao diện khác nhau dựa trên role của user:
 
-### User Object Structure
+### User Object Structure (từ Backend)
 ```javascript
 {
   id: 1,
@@ -257,15 +276,15 @@ Frontend tự động render giao diện khác nhau dựa trên role của user:
 }
 ```
 
-### Menu Navigation (Sidebar.jsx)
+### Menu Navigation (Sidebar.jsx) - Example
 ```javascript
-// Ví dụ từ Sidebar.jsx
+// Kiểm tra role
 const isSuperAdmin = user?.role === "admin";
 const isTenantAdmin = user?.role_in_tenant === "tenant_admin";
 const isOperator = user?.role_in_tenant === "operator";
 const isViewer = user?.role_in_tenant === "viewer";
 
-// Điều chỉnh menu theo role
+// Render menu dựa trên role
 {isSuperAdmin && (
   <NavLink to="/tenants">
     👥 Quản lý Tenant
@@ -291,14 +310,14 @@ const isViewer = user?.role_in_tenant === "viewer";
 )}
 ```
 
-### Protected Routes (App.jsx)
+### Protected Routes (App.jsx) - Example
 ```javascript
 // Route protection dựa trên role
 const ProtectedRoute = ({ allowedRoles }) => {
   const { user } = useContext(AuthContext);
 
-  if (allowedRoles) {
-    // Kiểm tra role hệ thống (admin) hoặc role công ty (tenant_admin, operator, viewer)
+  if (allowedRoles && user) {
+    // Kiểm tra role hệ thống hoặc role công ty
     const hasPermission = 
       allowedRoles.includes(user.role) || 
       allowedRoles.includes(user.role_in_tenant);
@@ -322,12 +341,12 @@ const ProtectedRoute = ({ allowedRoles }) => {
 </Routes>
 ```
 
-### Permission Matrix (UI)
+### Permission Check Utility
 ```javascript
-// Hàm kiểm tra quyền
-const hasPermission = (action, userRole, userTenantRole) => {
+// Hàm kiểm tra quyền (có thể dùng trong components)
+const hasPermission = (action, user) => {
   const permissions = {
-    // Action: [system-level roles, tenant-level roles]
+    // [action]: [system-level roles, tenant-level roles]
     'view_dashboard': [['admin', 'user'], ['tenant_admin', 'operator', 'viewer']],
     'manage_tenants': [['admin'], []],
     'manage_users': [['admin'], ['tenant_admin']],
@@ -337,11 +356,11 @@ const hasPermission = (action, userRole, userTenantRole) => {
   };
 
   const [sysRoles, tenantRoles] = permissions[action] || [[], []];
-  return sysRoles.includes(userRole) || tenantRoles.includes(userTenantRole);
+  return sysRoles.includes(user.role) || tenantRoles.includes(user.role_in_tenant);
 };
 
-// Usage trong component
-{hasPermission('manage_users', user.role, user.role_in_tenant) && (
+// Usage
+{hasPermission('manage_users', user) && (
   <button onClick={() => setShowUserModal(true)}>
     Thêm User
   </button>
@@ -351,72 +370,88 @@ const hasPermission = (action, userRole, userTenantRole) => {
 ### Data Isolation by Tenant
 ```javascript
 // API calls tự động filter theo tenant (từ JWT token)
-// Backend server confirm tenant_id từ token, không lấy từ frontend
-
-// Frontend không cần lo về security ở layer này
-// Vì backend verify JWT token và filter data
+// Backend verify tenant_id từ token, không lấy từ frontend
 
 // Ví dụ:
 const getDevices = async () => {
-  // Backend sẽ chỉ trả về device của tenant hiện tại
+  // Backend chỉ trả về device của tenant hiện tại
   const response = await api.get('/api/devices');
   return response.data;
 };
 
-// Superadmin sẽ nhận API khác để quản lý Tenant
+// SuperAdmin sẽ nhận API khác
 const getTenants = async () => {
   const response = await api.get('/api/tenants');
   return response.data;
 };
 ```
 
-## �🔄 Component Architecture
+## 🎬 Component Architecture
 
 ### Layout Structure
 ```
 App
 ├── Login (if not authenticated)
-└── Layout
+└── Layout (if authenticated)
     ├── Header
     ├── Sidebar
     └── Main Content Area
         ├── Dashboard
         ├── Devices
+        ├── DeviceDetail
         ├── Charts
         ├── Map
         ├── Alarms
-        └── Users
+        ├── Users
+        └── Tenants (SuperAdmin)
 ```
 
 ### State Management
 
-**Authentication** (Context API):
+**Authentication Context** (`contexts/AuthContext.jsx`):
 ```javascript
-// contexts/AuthContext.jsx
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    // Check token on mount
+    const savedToken = localStorage.getItem('access_token');
+    if (savedToken) {
+      verifyToken(savedToken);
+    }
+    setLoading(false);
+  }, []);
   
   return (
-    <AuthContext.Provider value={{ user, token }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
 ```
 
-**WebSocket** (Context API):
+**WebSocket Context** (`contexts/SocketContext.jsx`):
 ```javascript
-// contexts/SocketContext.jsx
 const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
   const [data, setData] = useState([]);
   const socketRef = useRef(null);
   
-  // WebSocket connection logic
+  useEffect(() => {
+    // Connect WebSocket
+    socketRef.current = new WebSocket('ws://localhost:8000/ws');
+    
+    socketRef.current.onmessage = (event) => {
+      setData(prev => [...prev, JSON.parse(event.data)]);
+    };
+    
+    return () => socketRef.current?.close();
+  }, []);
   
   return (
     <SocketContext.Provider value={{ data }}>
@@ -428,9 +463,8 @@ export const SocketProvider = ({ children }) => {
 
 ## 🔌 API Integration
 
-### API Service Setup
+### API Service Setup (`services/api.js`)
 ```javascript
-// services/api.js
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -449,6 +483,18 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Interceptor for error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired, redirect to login
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default apiClient;
 ```
 
@@ -466,6 +512,15 @@ export const createDevice = async (deviceData) => {
   const response = await api.post('/api/devices', deviceData);
   return response.data;
 };
+
+export const updateDevice = async (id, deviceData) => {
+  const response = await api.put(`/api/devices/${id}`, deviceData);
+  return response.data;
+};
+
+export const deleteDevice = async (id) => {
+  await api.delete(`/api/devices/${id}`);
+};
 ```
 
 ### Using in Components
@@ -473,18 +528,22 @@ export const createDevice = async (deviceData) => {
 // pages/Devices.jsx
 import { useEffect, useState } from 'react';
 import { getDevices } from '../services/deviceService';
+import { toast } from 'react-toastify';
 
 export default function Devices() {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchDevices = async () => {
       try {
+        setLoading(true);
         const data = await getDevices();
         setDevices(data);
-      } catch (error) {
-        console.error('Error fetching devices:', error);
+      } catch (err) {
+        setError(err.message);
+        toast.error('Failed to fetch devices');
       } finally {
         setLoading(false);
       }
@@ -493,7 +552,8 @@ export default function Devices() {
     fetchDevices();
   }, []);
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <div className="loading">Loading...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
 
   return (
     <div className="devices-container">
@@ -501,6 +561,9 @@ export default function Devices() {
         <div key={device.id} className="device-card">
           <h3>{device.name}</h3>
           <p>{device.location}</p>
+          <span className={`status ${device.is_active ? 'active' : 'inactive'}`}>
+            {device.is_active ? 'Online' : 'Offline'}
+          </span>
         </div>
       ))}
     </div>
@@ -514,21 +577,59 @@ export default function Devices() {
 ```javascript
 // components/TelemetryChart.jsx
 import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 export default function TelemetryChart({ data }) {
   const chartData = {
-    labels: data.map(d => d.timestamp),
+    labels: data.map(d => new Date(d.timestamp).toLocaleTimeString()),
     datasets: [
       {
-        label: 'Signal Strength',
-        data: data.map(d => d.signal),
+        label: 'Signal Strength (dB-Hz)',
+        data: data.map(d => d.avg_cno_dbhz),
         borderColor: 'rgb(75, 192, 192)',
         backgroundColor: 'rgba(75, 192, 192, 0.1)',
+        fill: true,
+        tension: 0.4,
+      },
+      {
+        label: 'Satellite Count',
+        data: data.map(d => d.sat_count),
+        borderColor: 'rgb(255, 99, 132)',
+        backgroundColor: 'rgba(255, 99, 132, 0.1)',
       }
     ]
   };
 
-  return <Line data={chartData} />;
+  const options = {
+    responsive: true,
+    plugins: {
+      title: {
+        display: true,
+        text: 'GNSS Telemetry Data',
+      },
+    },
+  };
+
+  return <Line data={chartData} options={options} />;
 }
 ```
 
@@ -536,15 +637,38 @@ export default function TelemetryChart({ data }) {
 ```javascript
 // components/DeviceMap.jsx
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix Leaflet icon
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
 
 export default function DeviceMap({ devices }) {
+  const defaultCenter = [21.0285, 105.8542]; // Hanoi
+
   return (
-    <MapContainer center={[21.0285, 105.8542]} zoom={13}>
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+    <MapContainer center={defaultCenter} zoom={13} style={{ height: '500px', width: '100%' }}>
+      <TileLayer
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; OpenStreetMap contributors'
+      />
       {devices.map(device => (
-        <Marker key={device.id} position={[device.latitude, device.longitude]}>
-          <Popup>{device.name}</Popup>
-        </Marker>
+        device.latitude && device.longitude && (
+          <Marker key={device.id} position={[device.latitude, device.longitude]}>
+            <Popup>
+              <div>
+                <h4>{device.name}</h4>
+                <p>Type: {device.device_type}</p>
+                <p>Status: {device.is_active ? 'Active' : 'Inactive'}</p>
+              </div>
+            </Popup>
+          </Marker>
+        )
       ))}
     </MapContainer>
   );
@@ -554,12 +678,11 @@ export default function DeviceMap({ devices }) {
 ## 🧪 Development & Testing
 
 ### Hot Module Replacement (HMR)
-Vite tự động reload component khi thay đổi code:
+Vite tự động reload component khi thay đổi code - không cần manual refresh!
+
 ```javascript
-// App.jsx - No manual refresh needed!
-if (import.meta.hot) {
-  import.meta.hot.accept();
-}
+// App.jsx - No special setup needed with Vite!
+// Just write components and save - automatic reload
 ```
 
 ### Browser DevTools
@@ -572,21 +695,23 @@ if (import.meta.hot) {
 ```
 
 ### Testing with Swagger UI
-1. Mở http://localhost:8000/docs
+1. Mở http://localhost:8000/docs (Backend API docs)
 2. Test API endpoints
 3. Copy cURL examples
-4. Verify response in DevTools Network tab
+4. Verify response in browser DevTools Network tab
 
 ### Manual Testing Checklist
-- [ ] Login works
+- [ ] Login works with valid credentials
+- [ ] Invalid credentials show error
 - [ ] Can view devices list
 - [ ] Device detail loads
 - [ ] Charts display data
 - [ ] Map shows markers
 - [ ] Alarms appear correctly
-- [ ] User management works
+- [ ] User management works (admin only)
 - [ ] Responsive on mobile
 - [ ] No console errors
+- [ ] Token refresh works
 
 ## 🎨 Styling
 
@@ -597,11 +722,15 @@ if (import.meta.hot) {
   --primary: #3b82f6;
   --secondary: #10b981;
   --danger: #ef4444;
+  --warning: #f59e0b;
+  --dark: #1f2937;
+  --light: #f3f4f6;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto;
-  color: var(--primary);
+  color: var(--dark);
+  background: var(--light);
 }
 
 /* Component-scoped CSS */
@@ -610,6 +739,12 @@ body {
   border-radius: 8px;
   background: white;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transition: transform 0.2s;
+}
+
+.device-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 ```
 
@@ -618,6 +753,7 @@ body {
 /* Mobile first approach */
 .container {
   padding: 1rem;
+  grid-template-columns: 1fr;
 }
 
 @media (min-width: 768px) {
@@ -644,64 +780,71 @@ Solution:
 - Check backend is running: http://localhost:8000/docs
 - Check VITE_API_URL in .env.local
 - Check CORS is enabled in backend
+- Verify network tab for actual errors
 ```
 
-### 2. VITE Not Found
+### 2. Port 5173 Already in Use
 ```bash
-npm install -g vite
-# or
-npx vite
+# Find process using port
+netstat -ano | findstr :5173
+
+# Kill process or use different port
+npm run dev -- --port 3000
 ```
 
-### 3. Components Not Updating
+### 3. HMR Not Working
+- Check webpack dev server is running
+- Clear browser cache
+- Restart npm run dev
+
+### 4. ESLint Errors
+```bash
+npm run lint -- --fix
+```
+
+### 5. Components Not Updating
 ```javascript
-// Check you're using hooks correctly
+// Ensure you're using hooks correctly
 const [value, setValue] = useState(initial);
 
 useEffect(() => {
-  // Dependency array is important!
+  // Always include dependency array!
 }, [dependencies]);
 ```
 
-### 4. Chart Not Displaying
+### 6. Chart Not Displaying
 ```javascript
-// Make sure you're using react-chartjs-2 correctly
-import { Line } from 'react-chartjs-2';
-import Chart from 'chart.js/auto';  // Important!
+// Make sure ChartJS is registered
+import Chart from 'chart.js/auto';  // Or manual registration
+
+// Check data format matches chart type
 ```
 
-### 5. Map Not Loading
+### 7. Map Not Loading
 ```javascript
-// Check Leaflet CSS is imported
+// Must import Leaflet CSS
 import 'leaflet/dist/leaflet.css';
 
-// Check L.Icon.Default paths
-delete L.Icon.Default.prototype._getIconUrl;
+// Fix default icon paths (see example above)
 ```
 
 ## 📚 Best Practices
 
 ### Component Organization
 ```javascript
-// ✅ Good
-const Dashboard = () => {
-  const [devices, setDevices] = useState([]);
-  
-  useEffect(() => {
-    fetchDevices();
-  }, []);
-
+// ✅ Good - Single responsibility
+const DeviceCard = ({ device, onSelect }) => {
   return (
-    <div className="dashboard">
-      {/* content */}
+    <div onClick={() => onSelect(device)}>
+      <h3>{device.name}</h3>
+      <p>{device.location}</p>
     </div>
   );
 };
 
-// ❌ Avoid
-const Dashboard = (props) => {
-  // Too many responsibilities
-  // Complex logic mixed with UI
+// ❌ Avoid - Too many responsibilities
+const DeviceList = (props) => {
+  // Complex logic + API calls + UI rendering all mixed
 };
 ```
 
@@ -709,16 +852,19 @@ const Dashboard = (props) => {
 ```javascript
 // Use useMemo for expensive calculations
 const expensiveValue = useMemo(() => {
-  return complexCalculation(data);
-}, [data]);
+  return devices.filter(d => d.is_active).sort(...);
+}, [devices]);
 
 // Use useCallback for stable function references
-const handleClick = useCallback(() => {
-  doSomething();
+const handleSelect = useCallback((device) => {
+  fetchDeviceDetails(device.id);
 }, []);
 
 // Lazy load routes
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+<Suspense fallback={<Loading />}>
+  <Dashboard />
+</Suspense>
 ```
 
 ### Error Handling
@@ -729,15 +875,17 @@ try {
 } catch (error) {
   toast.error('Failed to fetch data');
   console.error('Fetch error:', error);
+} finally {
+  setLoading(false);
 }
 ```
 
 ## 🔐 Security
 
-- ✅ Store tokens in localStorage (consider httpOnly cookies)
+- ✅ Store tokens in localStorage (consider httpOnly cookies for production)
 - ✅ Validate all user inputs
 - ✅ Use HTTPS in production
-- ✅ Sanitize HTML content
+- ✅ Sanitize HTML content (XSS prevention)
 - ✅ Implement CSRF protection
 - ✅ Regular security updates
 
@@ -803,91 +951,3 @@ npm install
 **For backend details**: See [Backend README](../backend/README.md)
 **For system architecture**: See [main README](../README.md)
 **For MQTT setup**: See [MQTT_SETUP.md](../MQTT_SETUP.md)
-├── .eslintrc.cjs          # Cấu hình ESLint
-├── vite.config.js         # Cấu hình Vite
-├── package.json           # Dependencies và scripts
-└── README.md              # File này
-```
-
-## 🔧 Cấu Hình
-
-### Vite Configuration
-
-File `vite.config.js` chứa các cấu hình chính:
-- Plugin React với SWC
-- Port mặc định: `5173`
-- Source map cho development
-
-### ESLint Configuration
-
-File `.eslintrc.cjs` cung cấp:
-- Kiểm tra syntax React
-- Quy tắc JSX
-- Cảnh báo khi sử dụng dependencies
-
-## 🔗 Kết Nối Backend
-
-Frontend kết nối với backend thông qua:
-- **Base URL**: ``
-- **Endpoints**:
-  - `POST /api/auth/login` - Đăng nhập
-  - `GET /api/devices` - Lấy danh sách thiết bị
-  - `GET /api/telemetry` - Lấy dữ liệu telemetry
-  - Xem [MQTT_SETUP.md](../MQTT_SETUP.md) để biết chi tiết
-
-## 📚 Công Nghệ Sử Dụng
-
-- **React 18** - UI Library
-- **Vite** - Build tool & dev server
-- **ES6+** - Modern JavaScript
-- **CSS3** - Styling
-- **ESLint** - Code quality
-
-## 🚧 Phát Triển
-
-### Thêm Component Mới
-
-1. Tạo file trong `src/components/`
-2. Export component như một default export
-3. Import và sử dụng trong Layout hoặc Pages
-
-### Thêm Trang Mới
-
-1. Tạo file JSX trong `src/pages/`
-2. Định nghĩa route trong `App.jsx`
-3. Thêm menu item trong `Sidebar.jsx`
-
-### Code Style
-
-- Sử dụng functional components với hooks
-- Tuân thủ ESLint rules
-- Viết comments cho logic phức tạp
-- Sử dụng camelCase cho variables/functions
-- Sử dụng PascalCase cho component names
-
-## 🐛 Troubleshooting
-
-### Port 5173 đã được sử dụng
-
-```bash
-npm run dev -- --port 3000
-```
-
-### Hot Module Replacement không hoạt động
-
-- Xóa cache: `rm -rf node_modules/.vite`
-- Restart dev server
-
-### ESLint errors
-
-```bash
-npm run lint -- --fix
-```
-
-## 📞 Liên Hệ & Hỗ Trợ
-
-Để báo cáo lỗi hoặc yêu cầu tính năng, vui lòng tạo issue trong repository.
-
-## 📄 Giấy Phép
-
-Dự án này là một phần của Navis Cloud Project.

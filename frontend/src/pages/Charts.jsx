@@ -23,7 +23,7 @@ const calculateSkyplot = (signals) => {
         if (s.prn.startsWith('G')) counts[0]++;
         else if (s.prn.startsWith('R')) counts[1]++;
         else if (s.prn.startsWith('E')) counts[2]++;
-        else if (s.prn.startsWith('B')) counts[3]++;
+        else if (s.prn.startsWith('C')) counts[3]++;
     });
     return counts;
 };
@@ -218,7 +218,7 @@ const Charts = () => {
     };
 
     const skyplotConfig = {
-        labels: ['GPS (G)', 'GLONASS (R)', 'Galileo (E)', 'BeiDou (B)'],
+        labels: ['GPS (G)', 'GLONASS (R)', 'Galileo (E)', 'BeiDou (C)'],
         datasets: [{
             data: chartState.skyplotCounts,
             backgroundColor: ['rgba(251, 191, 36, 0.8)','rgba(239, 68, 68, 0.8)','rgba(59, 130, 246, 0.8)','rgba(16, 185, 129, 0.8)'],
