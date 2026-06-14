@@ -20,7 +20,7 @@ from app.models.schema import Device, User, Telemetry, Alarm, RawDataLog, Tenant
 from app.schemas import DeviceCreate, DeviceResponse, TelemetryCreate, TelemetryResponse, RawFileResponse, TenantUpdate
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import FileResponse, StreamingResponse
-from datetime import datetime, timezone 
+from datetime import datetime, timezone, timedelta
 from app.core.mqtt_config import MQTTConfig
 
 router = APIRouter()
@@ -570,15 +570,27 @@ def get_device_files(
         query = query.filter(RawDataLog.file_type == file_type)
     if has_alarm is not None:
         query = query.filter(RawDataLog.has_alarm == has_alarm)
+    # 🚨 ĐÃ SỬA: XỬ LÝ LỆCH MÚI GIỜ (TIMEZONE UTC+7)
     if date_str:
         try:
-            # Lọc theo đúng ngày (Bỏ qua phần giờ phút)
-            query = query.filter(func.date(RawDataLog.start_time) == date_str)
-        except Exception:
+            # 1. Biến chuỗi "2026-06-14" thành object datetime
+            local_date = datetime.strptime(date_str, "%Y-%m-%d")
+            
+            # 2. Bắt đầu ngày ở VN (00:00 14/06) lùi về UTC -> 17:00 13/06
+            utc_start = local_date - timedelta(hours=7)
+            
+            # 3. Kết thúc ngày ở VN (23:59:59 14/06) -> 16:59:59 14/06 (UTC)
+            utc_end = utc_start + timedelta(days=1, seconds=-1)
+            
+            # 4. Lọc theo khoảng thời gian chuẩn xác
+            query = query.filter(
+                RawDataLog.start_time >= utc_start,
+                RawDataLog.start_time <= utc_end
+            )
+        except Exception as e:
             pass
 
     logs = query.order_by(RawDataLog.start_time.desc()).limit(limit).all()
-    
     # Đóng gói dữ liệu trả về cho Frontend
     result = []
     for log in logs:

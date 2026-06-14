@@ -1,8 +1,7 @@
 // src/pages/DeviceDetail.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Terminal, Download, Power, Loader2, Trash2, ShieldAlert, FileArchive, FileCode2, Filter, Calendar } from 'lucide-react';
-import { ToastContainer, toast } from 'react-toastify';
+import { ArrowLeft, Terminal, Download, Power, Loader2, Trash2, ShieldAlert, FileArchive, FileCode2, Filter, Calendar, X, MoreVertical } from 'lucide-react';import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useAuth } from '../context/AuthContext';
 
@@ -28,6 +27,14 @@ const DeviceDetail = () => {
     const [filterType, setFilterType] = useState('all'); // all, ubx, bin
     const [filterAlarm, setFilterAlarm] = useState('all'); // all, true
     const [filterDate, setFilterDate] = useState(''); // YYYY-MM-DD
+    // HÀM XỬ LÝ CLICK ĐỂ BẬT/TẮT LỌC 
+    const toggleFileType = (type) => {
+        setFilterType(prev => prev === type ? 'all' : type);
+    };
+
+    const toggleAlarm = () => {
+        setFilterAlarm(prev => prev === 'true' ? 'all' : 'true');
+    };
 
     const [selectedCmd, setSelectedCmd] = useState('start');
     const [cmdParams, setCmdParams] = useState({ mode: 'realtime' }); 
@@ -295,66 +302,54 @@ const DeviceDetail = () => {
                     {activeTab === 'files' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                             
-                            {/* BỘ LỌC FILE UI/UX MỚI */}
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', background: 'rgba(0,0,0,0.2)', border: '1px dashed rgba(255,255,255,0.05)', padding: '15px 20px', borderRadius: '12px', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#8b8d93', fontWeight: '600', fontSize: '0.9rem' }}>
-                                    <Filter size={16}/> Bộ lọc
+                            {/* BỘ LỌC FILE DẠNG CHIP (TAGS) HIỆN ĐẠI */}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', background: 'transparent', paddingBottom: '15px', alignItems: 'center' }}>
+                                <div style={{ color: '#8b8d93', fontWeight: '600', fontSize: '0.9rem', marginRight: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Filter size={16}/> Lọc dữ liệu:
                                 </div>
 
-                                {/* Segmented Control cho Loại File */}
-                                <div className="segmented-control">
-                                    <button className={`seg-btn ${filterType === 'all' ? 'active' : ''}`} onClick={() => setFilterType('all')}>
-                                        Tất cả
-                                    </button>
-                                    <button className={`seg-btn ${filterType === 'ubx' ? 'active' : ''}`} onClick={() => setFilterType('ubx')}>
-                                        <FileCode2 size={14} /> UBX
-                                    </button>
-                                    <button className={`seg-btn ${filterType === 'bin' ? 'active' : ''}`} onClick={() => setFilterType('bin')}>
-                                        <FileArchive size={14} /> SDR (BIN)
-                                    </button>
-                                </div>
+                                {/* Nút UBX */}
+                                <button 
+                                    className={`filter-chip ${filterType === 'ubx' ? 'active-blue' : ''}`} 
+                                    onClick={() => toggleFileType('ubx')}
+                                >
+                                    <FileCode2 size={14} /> UBX
+                                </button>
 
-                                <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }}></div>
+                                {/* Nút BIN */}
+                                <button 
+                                    className={`filter-chip ${filterType === 'bin' ? 'active-purple' : ''}`} 
+                                    onClick={() => toggleFileType('bin')}
+                                >
+                                    <FileArchive size={14} /> SDR (BIN)
+                                </button>
 
-                                {/* Segmented Control cho Cảnh báo */}
-                                <div className="segmented-control">
-                                    <button className={`seg-btn ${filterAlarm === 'all' ? 'active' : ''}`} onClick={() => setFilterAlarm('all')}>
-                                        Mọi trạng thái
-                                    </button>
-                                    <button className={`seg-btn alert-btn ${filterAlarm === 'true' ? 'active' : ''}`} onClick={() => setFilterAlarm('true')}>
-                                        <ShieldAlert size={14} /> Có Tấn Công
-                                    </button>
-                                </div>
+                                <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 4px' }}></div>
 
-                                <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }}></div>
+                                {/* Nút Cảnh Báo */}
+                                <button 
+                                    className={`filter-chip ${filterAlarm === 'true' ? 'active-red' : ''}`} 
+                                    onClick={toggleAlarm}
+                                >
+                                    <ShieldAlert size={14} /> Có tấn công
+                                </button>
 
-                                {/* Custom Input Date */}
-                                <div className="custom-date-picker">
-                                    <Calendar size={16} color={filterDate ? "#10b981" : "#8b8d93"} />
+                                <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 4px' }}></div>
+
+                                {/* Bộ chọn Ngày */}
+                                <div className={`date-chip ${filterDate ? 'active-green' : ''}`}>
+                                    <Calendar size={14} />
                                     <input 
                                         type="date" 
                                         value={filterDate} 
                                         onChange={(e) => setFilterDate(e.target.value)} 
-                                        style={{ color: filterDate ? '#10b981' : '#a3a3a3' }}
                                     />
                                     {filterDate && (
-                                        <button className="clear-date-btn" onClick={() => setFilterDate('')}>
+                                        <div className="clear-icon" onClick={() => setFilterDate('')}>
                                             <X size={14} />
-                                        </button>
+                                        </div>
                                     )}
                                 </div>
-
-                                {/* Nút Xóa Lọc Tổng (Chỉ hiện khi có lọc) */}
-                                {(filterType !== 'all' || filterAlarm !== 'all' || filterDate !== '') && (
-                                    <button 
-                                        onClick={() => { setFilterType('all'); setFilterAlarm('all'); setFilterDate(''); }}
-                                        style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', transition: 'background 0.2s' }}
-                                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-                                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                    >
-                                        Xóa bộ lọc
-                                    </button>
-                                )}
                             </div>
 
                             {/* BẢNG DỮ LIỆU */}
@@ -364,7 +359,7 @@ const DeviceDetail = () => {
                                         <tr>
                                             <th className="table-header">Tên File</th>
                                             <th className="table-header">Ngày ghi</th>
-                                            <th className="table-header">Khung giờ (1 tiếng)</th>
+                                            <th className="table-header">Khung giờ</th>
                                             <th className="table-header">Định dạng</th>
                                             <th className="table-header">Kích thước</th>
                                             <th className="table-header" style={{ width: '120px', textAlign: 'right' }}>Hành động</th> 
@@ -474,6 +469,25 @@ const DeviceDetail = () => {
                 
                 .clear-date-btn { background: rgba(255,255,255,0.1); border: none; color: #fff; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; margin-left: 4px; }
                 .clear-date-btn:hover { background: #ef4444; }
+                /* CSS CHO BỘ LỌC CHIP (TAGS) */
+                .filter-chip { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: #8b8d93; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+                .filter-chip:hover { background: rgba(255,255,255,0.08); color: #fff; }
+                
+                /* Trạng thái BẬT của từng loại nút */
+                .filter-chip.active-blue { background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); color: #3b82f6; }
+                .filter-chip.active-purple { background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); color: #a855f7; }
+                .filter-chip.active-red { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4); color: #ef4444; }
+
+                /* CSS cho nút Ngày (Date Picker) */
+                .date-chip { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 0 14px; height: 32px; transition: all 0.2s; position: relative; color: #8b8d93; }
+                .date-chip:hover { background: rgba(255,255,255,0.08); color: #fff; }
+                .date-chip.active-green { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #10b981; }
+                
+                .date-chip input[type="date"] { background: transparent; border: none; outline: none; font-size: 0.85rem; font-weight: 600; cursor: pointer; padding: 0; color: inherit; font-family: inherit; }
+                .date-chip input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0; position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+                
+                .clear-icon { display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.1); border-radius: 50%; padding: 2px; cursor: pointer; margin-left: 2px; z-index: 10;}
+                .clear-icon:hover { background: #ef4444; color: #fff; }
             `}</style>
         </>
     );
