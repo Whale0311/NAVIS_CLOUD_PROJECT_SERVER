@@ -139,10 +139,10 @@ const Login = () => {
             <div className="login-container">
             <div className="hero-section">
                 <h1 className="brand-title">Navis-Cloud</h1>
-                <h2 className="brand-subtitle">Real-time GNSS interference detection, classification & localization.</h2>
-                <p className="brand-desc">Application for anomaly detection in raw GNSS observations. Supports RTCM, NMEA, SBF data formats.</p>
+                <h2 className="brand-subtitle">Real-time GNSS Threat Intelligence & Monitoring.</h2>
+                <p className="brand-desc">A comprehensive cloud platform for continuous monitoring and anomaly detection in raw GNSS signals. Seamlessly processing UBX, RTCM, NMEA, and SDR forensic data to secure your positioning infrastructure.</p>
                 <p className="brand-desc" style={{ fontStyle: 'italic', color: '#10b981' }}>Access to the service is limited to invitation-only at this stage.</p>
-                <div className="brand-footer">© Vũ Đức Anh. All rights reserved.</div>
+                <div className="brand-footer">© 2026 Navis-Hust. All rights reserved.</div>
             </div>
 
             <div className="auth-card">
