@@ -152,6 +152,9 @@ class MQTTSubscriber:
             device = db.query(Device).filter(Device.device_id == message.device_id).first()
             if not device: return
 
+            # 🚨 SỬA LỖI OFFLINE ẢO: Cập nhật thời gian sống
+            device.last_seen = datetime.now(timezone.utc)
+
             alarm_saved = False 
             webhook_payload = None
 
@@ -166,17 +169,16 @@ class MQTTSubscriber:
                 alarm_saved = True
                 webhook_payload = {"event_type": "alarm", "schema": "gnss.health.v1", "data": {"severity": severity, "message": msg_desc}}
 
-                # 🚨 TÍNH NĂNG MỚI: ĐÁNH DẤU CỜ HAS_ALARM CHO FILE CỦA GIỜ HIỆN TẠI
+                # ĐÁNH DẤU CỜ HAS_ALARM CHO FILE CỦA GIỜ HIỆN TẠI
                 current_time = datetime.now(timezone.utc)
                 start_of_hour = current_time.replace(minute=0, second=0, microsecond=0)
                 
-                # Tìm các file (.ubx và .bin) đang được ghi trong giờ này để bật cờ báo động
                 db.query(RawDataLog).filter(
                     RawDataLog.device_id == device.id,
                     RawDataLog.start_time == start_of_hour
                 ).update({"has_alarm": True})
 
-            # 2. XỬ LÝ LỖI DROP/BACKLOG (Bỏ qua phần đánh dấu cờ file với lỗi vặt này)
+            # 2. XỬ LÝ LỖI DROP/BACKLOG
             if health_data:
                 total_dropped = (health_data.get("ingress_dropped", 0) + health_data.get("detect_dropped", 0) + health_data.get("raw_dropped", 0))
                 if total_dropped > 0:
@@ -252,6 +254,9 @@ class MQTTSubscriber:
             device = db.query(Device).filter(Device.device_id == message.device_id).first()
             if not device: return
 
+            # 🚨 SỬA LỖI OFFLINE ẢO: Cập nhật thời gian sống khi mạch gửi file
+            device.last_seen = datetime.now(timezone.utc)
+
             raw_b64 = message.data.get("raw_base64", "")
             if not raw_b64: return
             raw_bytes = base64.b64decode(raw_b64)
@@ -317,14 +322,53 @@ class MQTTSubscriber:
         except Exception: pass
     
     def handle_detect_sdr(self, message):
+        """Xử lý kết quả AI nhận diện Jamming từ SDR và LƯU VÀO DATABASE"""
         try:
+            db = SessionLocal()
+            device = db.query(Device).filter(Device.device_id == message.device_id).first()
+            if not device: return
+
+            # 🚨 SỬA LỖI OFFLINE ẢO: Cập nhật thời gian sống
+            device.last_seen = datetime.now(timezone.utc)
+            
             raw_data = message.data if isinstance(message.data, dict) else {}
+            sdr_class = raw_data.get('class', 'Unknown Anomaly')
+            confidence = raw_data.get('confidence', 0)
+            
+            # 1. Tạo một Cảnh Báo (Alarm) ghi vào lịch sử sự kiện
+            msg_desc = f"SDR AI Detect: Phát hiện '{sdr_class}' (Độ tin cậy: {confidence}%)"
+            alarm = Alarm(
+                device_id=device.id,
+                severity="Critical" if "jamming" in sdr_class.lower() or "spoofing" in sdr_class.lower() else "Warning",
+                event_desc=msg_desc,
+                status="Active"
+            )
+            db.add(alarm)
+            
+            # 2. Lưu toàn bộ bức ảnh (Base64) và kết quả phân loại vào bảng Telemetry
+            telemetry = Telemetry(
+                device_id=device.id,
+                timestamp=message.event_time,
+                is_spoofed=True if "spoofing" in sdr_class.lower() else False,
+                status=sdr_class,
+                detectors_data=raw_data  # Lưu trọn vẹn JSON chứa chuỗi ảnh Base64
+            )
+            db.add(telemetry)
+            
+            db.commit()
+
+            # 3. Bắn Webhook sang FastAPI để Web hiển thị Real-time
             requests.post(
                 f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
                 json={"event_type": "sdr_detect", "schema": "gnss.detect.sdr.v1", "data": raw_data},
                 timeout=2
             )
-        except Exception: pass
+            
+        except Exception as e:
+            print(f"   ⚠️ Lỗi lưu SDR Detect: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
     def handle_raw_sdr(self, message):
         """GHÉP CHUNK SDR VÀ LƯU VÀO FILE .BIN THEO KHUNG 1 TIẾNG"""
@@ -355,7 +399,7 @@ class MQTTSubscriber:
                 if not device:
                     del self.sdr_buffer[file_id]
                     return
-
+                device.last_seen = datetime.now(timezone.utc)
                 assembled_bytes = bytearray()
                 for i in range(chunk_count):
                     if i not in self.sdr_buffer[file_id]["chunks"]:
