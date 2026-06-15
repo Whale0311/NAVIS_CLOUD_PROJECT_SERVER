@@ -163,6 +163,26 @@ const Charts = () => {
                         historyBuffer: buffer
                     };
                     setChartState({ ...chartStateRef.current });
+
+                    // ========================================================
+                    // 🚨 ĐOẠN SỬA LỖI MỚI: TÌM LẠI ẢNH SDR TRONG LỊCH SỬ
+                    // ========================================================
+                    // Lật ngược mảng lịch sử (để tìm từ mới nhất về cũ nhất)
+                    const latestSdr = [...dataArray].reverse().find(
+                        item => item.detectors_data && item.detectors_data.spectrum_image_base64
+                    );
+
+                    if (latestSdr) {
+                        setSdrData({
+                            image: latestSdr.detectors_data.spectrum_image_base64,
+                            threatClass: latestSdr.detectors_data.class || latestSdr.status || "Unknown",
+                            confidence: latestSdr.detectors_data.confidence || 0,
+                            time: latestSdr.timestamp
+                        });
+                    } else {
+                        setSdrData(null); // Nếu 60 bản ghi gần nhất không có ảnh nào, báo an toàn
+                    }
+                    // ========================================================
                 }
             } catch (e) { console.error("Lỗi nạp dữ liệu lịch sử", e); }
         };
