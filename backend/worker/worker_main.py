@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import base64
-
+from concurrent.futures import ThreadPoolExecutor
 # 1. Lấy đường dẫn của thư mục gốc (Navis-Cloud-Project)
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, ROOT_DIR)
@@ -42,7 +42,7 @@ class MQTTSubscriber:
         self.parser = GNSSParser()
         self.message_count = 0
         self.sdr_buffer = {}
-        
+        self.executor = ThreadPoolExecutor(max_workers=4)
     def on_connect(self, client, userdata, flags, reason_code, properties):
         if reason_code == 0:
             print("✅ Đã kết nối MQTT broker thành công!")
@@ -75,13 +75,13 @@ class MQTTSubscriber:
             elif "detect.sdr" in schema_name:
                 self.handle_detect_sdr(mqtt_message)
             elif "raw.sdr" in schema_name:
-                self.handle_raw_sdr(mqtt_message)
+                self.executor.submit(self.handle_raw_sdr, mqtt_message)
             elif "health" in schema_name:
                 self.handle_health_data(mqtt_message)
             elif "position" in schema_name:
                 self.handle_position_data(mqtt_message)
             elif "raw.ublox" in schema_name:
-                self.handle_raw_ublox(mqtt_message)
+                self.executor.submit(self.handle_raw_ublox, mqtt_message)
             elif "cmd.init" in schema_name:
                 self.handle_cmd_init(mqtt_message)
             elif "cmd.ack" in schema_name:
