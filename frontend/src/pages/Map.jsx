@@ -13,21 +13,26 @@ const GNSS_CONSTS = {
 
 const pulseIcon = L.divIcon({ className: 'pulse-marker', iconSize: [22, 22] });
 const offlineIcon = L.divIcon({ className: 'offline-marker', iconSize: [22, 22] });
-// Thêm đoạn này ngay trên const MapPage = () => {
-const parseTelemetryPayload = (msgData, prevData) => {
-    const rawCno = msgData.summary?.avg_cno_dbhz || msgData.avg_cno_dbhz || msgData.avg_cno || 0;
-    let rawPdop = msgData.position?.pdop || msgData.pdop;
+const parseTelemetryPayload = (msgData, prevData = {}) => {
+    // Ưu tiên lấy từ msgData, nếu không có thì "vét" lại từ prevData, cuối cùng mới gán = 0
+    const rawCno = msgData.summary?.avg_cno_dbhz || msgData.avg_cno_dbhz || msgData.avg_cno || prevData.avg_cno_dbhz || 0;
     
+    // Dùng ?? (Nullish coalescing) thay vì || để tránh trường hợp PDOP = 0 bị nhầm thành false
+    const rawPdop = msgData.position?.pdop ?? msgData.pdop ?? prevData.pdop;
+    
+    const satCount = msgData.summary?.sat_count || msgData.sat_count || prevData.sat_count || 0;
+    const signalsData = msgData.signals || msgData.signals_data || prevData.signals_data || [];
+
     return {
         ...prevData,
-        ...msgData,
+        ...msgData, // Nạp tọa độ và các trường khác
         timestamp: new Date().toISOString(),
         avg_cno: rawCno,
         avg_cno_dbhz: rawCno,
         cno: rawCno,
         pdop: typeof rawPdop === 'number' ? rawPdop.toFixed(2) : '--',
-        sat_count: msgData.summary?.sat_count || msgData.sat_count || 0,
-        signals_data: msgData.signals || msgData.signals_data || []
+        sat_count: satCount,
+        signals_data: signalsData
     };
 };
 
@@ -99,21 +104,20 @@ const MapPage = () => {
             } catch (error) { console.error("Lỗi tải thiết bị:", error); }
         };
 
-        // LẮNG NGHE SỰ KIỆN TỪ RADAR TOÀN CỤC
         // ==========================================
         // MAP.JSX: LẮNG NGHE SỰ KIỆN TỪ RADAR TOÀN CỤC
         // ==========================================
         const handleGlobalUpdate = (event) => {
             const msg = event.detail; 
             
-            // CƠ CHẾ BẮT TỌA ĐỘ: Check theo chuẩn mới (có nhánh position)
+            // CƠ CHẾ BẮT TỌA ĐỘ
             const isPosition = 
                 msg.event_type === "telemetry_update" || 
                 msg.event_type === "position_update" || 
                 (msg.data && msg.data.position !== undefined);
 
             if (isPosition) {                
-                // 1. Cập nhật vị trí Marker trên bản đồ
+                // 1. Cập nhật vị trí Marker trên bản đồ (Giữ nguyên)
                 devicesRef.current = devicesRef.current.map(d => {
                     if (d.device_id === msg.device_id) {
                         return {
@@ -130,13 +134,27 @@ const MapPage = () => {
 
                 // B. Bơm dữ liệu vào Bảng Panel
                 if (selectedDeviceIdRef.current === msg.device_id) {
-                    setTelemetryData(prev => parseTelemetryPayload(msg.data, prev));
                     
-                    // ... (Đoạn code camera flyTo giữ nguyên)
-
+                    // 🚨 ĐÃ SỬA: Phân luồng rõ ràng, không gán bừa bãi
+                    if (msg.event_type === "telemetry_update") {
+                        // Nếu là gói Telemetry (đầy đủ vệ tinh), cập nhật toàn bộ bảng
+                        setTelemetryData(prev => parseTelemetryPayload(msg.data, prev));
+                    } 
+                    else if (msg.event_type === "position_update") {
+                        // Nếu chỉ là gói Vị trí, CHỈ cập nhật lại tọa độ, giữ nguyên bảng vệ tinh
+                        setTelemetryData(prev => {
+                            if (!prev) return prev;
+                            return {
+                                ...prev,
+                                latitude: msg.data.lat_deg || prev.latitude,
+                                longitude: msg.data.lon_deg || prev.longitude,
+                            };
+                        });
+                    }
+                    
                     // Camera tự động bám xe
-                    const lat = msg.data.position?.lat_deg;
-                    const lon = msg.data.position?.lon_deg;
+                    const lat = msg.data.position?.lat_deg || msg.data.lat_deg || msg.data.latitude;
+                    const lon = msg.data.position?.lon_deg || msg.data.lon_deg || msg.data.longitude;
                     if (mapRef.current && lat && lon) {
                         const currentCenter = mapRef.current.getCenter();
                         const distLat = Math.abs(currentCenter.lat - lat);
