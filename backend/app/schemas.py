@@ -134,15 +134,16 @@ class TelemetryResponse(BaseModel):
     id: int
     timestamp: datetime
     
-    latitude: Optional[float]
-    longitude: Optional[float]
-    sat_count: int
-    avg_cno_dbhz: Optional[float]
-    pdop: Optional[float]
-    is_spoofed: Optional[bool]
-    status: Optional[str]
-    
-    signals_data: List[SignalDetail]
+    avg_cno_dbhz: Optional[float] = None
+    pdop: Optional[float] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    height_m: Optional[float] = None
+    sat_count: Optional[int] = 0
+    is_spoofed: Optional[bool] = None
+    status: Optional[str] = None
+
+    signals_data: Optional[List[Any]] = []
 
     class Config:
         from_attributes = True
