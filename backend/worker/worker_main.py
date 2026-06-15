@@ -290,6 +290,12 @@ class MQTTSubscriber:
                 raw_log.end_time = current_time
                 raw_log.file_size_bytes += len(raw_bytes)
             else:
+                # 🚨 SỬA LỖI RACE CONDITION: Kiểm tra xem giờ này có Alarm chưa?
+                has_alarm_in_hour = db.query(Alarm).filter(
+                    Alarm.device_id == device.id,
+                    Alarm.created_at >= start_of_hour
+                ).first() is not None
+
                 # Tạo bản ghi mới cho một khung giờ mới
                 raw_log = RawDataLog(
                     device_id=device.id,
@@ -298,7 +304,7 @@ class MQTTSubscriber:
                     file_type="ubx",
                     file_path=file_path,
                     file_size_bytes=len(raw_bytes),
-                    has_alarm=False
+                    has_alarm=has_alarm_in_hour  # Kế thừa cờ đỏ nếu đã có tấn công
                 )
                 db.add(raw_log)
             db.commit()
@@ -328,15 +334,20 @@ class MQTTSubscriber:
             device = db.query(Device).filter(Device.device_id == message.device_id).first()
             if not device: return
 
-            # 🚨 SỬA LỖI OFFLINE ẢO: Cập nhật thời gian sống
+            # Cập nhật thời gian sống
             device.last_seen = datetime.now(timezone.utc)
             
             raw_data = message.data if isinstance(message.data, dict) else {}
             sdr_class = raw_data.get('class', 'Unknown Anomaly')
-            confidence = raw_data.get('confidence', 0)
             
-            # 1. Tạo một Cảnh Báo (Alarm) ghi vào lịch sử sự kiện
-            msg_desc = f"SDR AI Detect: Phát hiện '{sdr_class}' (Độ tin cậy: {confidence}%)"
+            # 🚨 1. SỬA LỖI HIỂN THỊ ĐỘ TIN CẬY (CONFIDENCE)
+            raw_confidence = raw_data.get('confidence', 0)
+            # Biến 0.900348... thành 90.03 (Phòng hờ AI gửi sẵn số 90 thì không nhân 100 nữa)
+            display_conf = (raw_confidence * 100) if raw_confidence <= 1.0 else raw_confidence
+            
+            # Làm tròn 2 chữ số thập phân
+            msg_desc = f"SDR AI Detect: Phát hiện '{sdr_class}' (Độ tin cậy: {display_conf:.2f}%)"
+            
             alarm = Alarm(
                 device_id=device.id,
                 severity="Critical" if "jamming" in sdr_class.lower() or "spoofing" in sdr_class.lower() else "Warning",
@@ -345,19 +356,27 @@ class MQTTSubscriber:
             )
             db.add(alarm)
             
-            # 2. Lưu toàn bộ bức ảnh (Base64) và kết quả phân loại vào bảng Telemetry
             telemetry = Telemetry(
                 device_id=device.id,
                 timestamp=message.event_time,
                 is_spoofed=True if "spoofing" in sdr_class.lower() else False,
                 status=sdr_class,
-                detectors_data=raw_data  # Lưu trọn vẹn JSON chứa chuỗi ảnh Base64
+                detectors_data=raw_data 
             )
             db.add(telemetry)
             
+            # 🚨 2. TÍNH NĂNG MỚI: CẮM CỜ ĐỎ CHO FILE RAW ĐỂ WEB HIỆN KHIÊN CẢNH BÁO
+            current_time = datetime.now(timezone.utc)
+            start_of_hour = current_time.replace(minute=0, second=0, microsecond=0)
+            
+            db.query(RawDataLog).filter(
+                RawDataLog.device_id == device.id,
+                RawDataLog.start_time == start_of_hour
+            ).update({"has_alarm": True})
+
             db.commit()
 
-            # 3. Bắn Webhook sang FastAPI để Web hiển thị Real-time
+            # Bắn Webhook sang FastAPI để Web hiển thị Real-time
             requests.post(
                 f"http://localhost:8000/api/internal/broadcast/{message.device_id}",
                 json={"event_type": "sdr_detect", "schema": "gnss.detect.sdr.v1", "data": raw_data},
@@ -438,6 +457,12 @@ class MQTTSubscriber:
                     raw_log.end_time = current_time
                     raw_log.file_size_bytes += len(assembled_bytes)
                 else:
+                    # 🚨 SỬA LỖI RACE CONDITION: Kiểm tra xem giờ này có Alarm chưa?
+                    has_alarm_in_hour = db.query(Alarm).filter(
+                        Alarm.device_id == device.id,
+                        Alarm.created_at >= start_of_hour
+                    ).first() is not None
+
                     raw_log = RawDataLog(
                         device_id=device.id,
                         start_time=start_of_hour,
@@ -445,7 +470,7 @@ class MQTTSubscriber:
                         file_type="bin",
                         file_path=file_path,
                         file_size_bytes=len(assembled_bytes),
-                        has_alarm=False
+                        has_alarm=has_alarm_in_hour  # Kế thừa cờ đỏ nếu đã có tấn công
                     )
                     db.add(raw_log)
                 db.commit()
