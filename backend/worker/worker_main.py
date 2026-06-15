@@ -290,13 +290,16 @@ class MQTTSubscriber:
                 raw_log.end_time = current_time
                 raw_log.file_size_bytes += len(raw_bytes)
             else:
-                # 🚨 SỬA LỖI RACE CONDITION: Kiểm tra xem giờ này có Alarm chưa?
+                # 🚨 GIẢI PHÁP: Tạo một biến thời gian "trơn" (không múi giờ) để so sánh với bảng Alarm
+                start_of_hour_naive = start_of_hour.replace(tzinfo=None)
+                
+                # Kiểm tra xem giờ này có Alarm chưa một cách an toàn
                 has_alarm_in_hour = db.query(Alarm).filter(
                     Alarm.device_id == device.id,
-                    Alarm.created_at >= start_of_hour
+                    Alarm.created_at >= start_of_hour_naive
                 ).first() is not None
 
-                # Tạo bản ghi mới cho một khung giờ mới
+                # Tạo bản ghi RawDataLog (Vẫn dùng start_of_hour có múi giờ cho bảng này)
                 raw_log = RawDataLog(
                     device_id=device.id,
                     start_time=start_of_hour,
@@ -304,7 +307,7 @@ class MQTTSubscriber:
                     file_type="ubx",
                     file_path=file_path,
                     file_size_bytes=len(raw_bytes),
-                    has_alarm=has_alarm_in_hour  # Kế thừa cờ đỏ nếu đã có tấn công
+                    has_alarm=has_alarm_in_hour  # Kế thừa cờ đỏ từ Alarm
                 )
                 db.add(raw_log)
             db.commit()
@@ -457,10 +460,12 @@ class MQTTSubscriber:
                     raw_log.end_time = current_time
                     raw_log.file_size_bytes += len(assembled_bytes)
                 else:
-                    # 🚨 SỬA LỖI RACE CONDITION: Kiểm tra xem giờ này có Alarm chưa?
+                    # 🚨 ÁP DỤNG TƯƠNG TỰ CHO SDR
+                    start_of_hour_naive = start_of_hour.replace(tzinfo=None)
+                    
                     has_alarm_in_hour = db.query(Alarm).filter(
                         Alarm.device_id == device.id,
-                        Alarm.created_at >= start_of_hour
+                        Alarm.created_at >= start_of_hour_naive
                     ).first() is not None
 
                     raw_log = RawDataLog(
@@ -470,7 +475,7 @@ class MQTTSubscriber:
                         file_type="bin",
                         file_path=file_path,
                         file_size_bytes=len(assembled_bytes),
-                        has_alarm=has_alarm_in_hour  # Kế thừa cờ đỏ nếu đã có tấn công
+                        has_alarm=has_alarm_in_hour  # Kế thừa cờ đỏ từ Alarm
                     )
                     db.add(raw_log)
                 db.commit()

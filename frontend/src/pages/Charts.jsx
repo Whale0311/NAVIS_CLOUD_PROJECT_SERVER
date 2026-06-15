@@ -42,8 +42,9 @@ const Charts = () => {
     const chartStateRef = useRef({
         trendLabels: Array(MAX_HISTORY).fill('--:--'),
         trendData: Array(MAX_HISTORY).fill(null),
-        skyplotCounts: [0, 0, 0, 0, 0, 0], // Sửa thành 6 số 0
-        historyBuffer: Array(MAX_HISTORY).fill({ time: '', signals: {} })
+        skyplotCounts: [0, 0, 0, 0, 0, 0], 
+        historyBuffer: Array(MAX_HISTORY).fill({ time: '', signals: {} }),
+        lastMsgTime: 0 // 🚨 THÊM BIẾN NÀY: Lưu lại thời gian của gói tin mới nhất
     });
     
     const [chartState, setChartState] = useState(chartStateRef.current);
@@ -54,12 +55,21 @@ const Charts = () => {
     const processNewTelemetry = (apiData) => {
         let rawTime = apiData.timestamp || apiData.event_time || new Date().toISOString();
         if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
-        const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
         
+        const msgTimestamp = new Date(rawTime).getTime(); // Lấy Timestamp dạng số mili-giây
+        const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
+
+        const curr = chartStateRef.current;
+
+        // 🚨 CHỐNG "XUYÊN KHÔNG": Nếu gói tin này sinh ra trước gói tin mới nhất trên biểu đồ -> BỎ QUA!
+        if (msgTimestamp < curr.lastMsgTime) {
+            console.warn(`⏳ Bỏ qua gói tin cũ bị trễ mạng: ${timeStr}`);
+            return; 
+        }
+
         const signals = apiData.signals || apiData.signals_data || [];
         const currentCno = apiData.summary?.avg_cno_dbhz ?? apiData.avg_cno_dbhz ?? apiData.avg_cno ?? 0;
 
-        const curr = chartStateRef.current;
         const newLabels = [...curr.trendLabels.slice(1), timeStr];
         const newData = [...curr.trendData.slice(1), currentCno]; 
         
@@ -73,13 +83,13 @@ const Charts = () => {
             trendLabels: newLabels,
             trendData: newData,
             skyplotCounts: calculateSkyplot(signals),
-            historyBuffer: newBuffer
+            historyBuffer: newBuffer,
+            lastMsgTime: msgTimestamp // 🚨 Cập nhật lại kỷ lục thời gian mới nhất
         };
 
         setChartState({ ...chartStateRef.current });
         setIsLive(true); 
     };
-
     // ==========================================
     // 1. LẤY DANH SÁCH THIẾT BỊ LÚC LOAD TRANG
     // ==========================================
@@ -109,7 +119,7 @@ const Charts = () => {
     // ==========================================
     useEffect(() => {
         if (!selectedDeviceId) return;
-        
+        let isMounted = true; 
         // Reset state khi đổi thiết bị
         chartStateRef.current = {
             trendLabels: Array(MAX_HISTORY).fill('--:--'),
@@ -130,44 +140,14 @@ const Charts = () => {
                 
                 if (!res.ok) throw new Error("Không thể tải lịch sử dữ liệu");
                 const dataArray = await res.json();
+                console.log("🔍 API Lịch sử trả về:", dataArray); // Thêm dòng này
+                if (!isMounted) return;
 
                 if (dataArray && dataArray.length > 0) {
-                    const history = [...dataArray].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                    const labels = [];
-                    const dataPoints = [];
-                    const buffer = [];
-
-                    history.forEach(item => {
-                        let rawTime = item.timestamp;
-                        if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
-                        const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
-                        labels.push(timeStr);
-                        
-                        dataPoints.push(item.avg_cno_dbhz ?? item.avg_cno ?? 0);
-                        
-                        let sigMap = {};
-                        (item.signals_data || []).forEach(s => {
-                            sigMap[s.prn] = s.cno_dbhz ?? s.cno ?? 0;
-                        });
-                        buffer.unshift({ time: timeStr, signals: sigMap });
-                    });
-
-                    while (labels.length < MAX_HISTORY) labels.unshift('--:--');
-                    while (dataPoints.length < MAX_HISTORY) dataPoints.unshift(null);
-                    while (buffer.length < MAX_HISTORY) buffer.push({ time: '', signals: {} });
-
-                    chartStateRef.current = {
-                        trendLabels: labels,
-                        trendData: dataPoints,
-                        skyplotCounts: calculateSkyplot(history[history.length - 1].signals_data),
-                        historyBuffer: buffer
-                    };
-                    setChartState({ ...chartStateRef.current });
-
-                    // ========================================================
-                    // 🚨 ĐOẠN SỬA LỖI MỚI: TÌM LẠI ẢNH SDR TRONG LỊCH SỬ
-                    // ========================================================
-                    // Lật ngược mảng lịch sử (để tìm từ mới nhất về cũ nhất)
+                    
+                    // ==========================================
+                    // 1. TÌM ẢNH SDR TRONG TOÀN BỘ LỊCH SỬ
+                    // ==========================================
                     const latestSdr = [...dataArray].reverse().find(
                         item => item.detectors_data && item.detectors_data.spectrum_image_base64
                     );
@@ -180,30 +160,66 @@ const Charts = () => {
                             time: latestSdr.timestamp
                         });
                     } else {
-                        setSdrData(null); // Nếu 60 bản ghi gần nhất không có ảnh nào, báo an toàn
+                        setSdrData(null);
                     }
-                    // ========================================================
+
+                    // ==========================================
+                    // 2. 🚨 SỬA LỖI MẤT DÒNG: LỌC BỎ CÁC BẢN GHI SDR AI KHỎI BIỂU ĐỒ
+                    // Chỉ giữ lại các bản ghi GNSS thực sự có chứa tín hiệu vệ tinh
+                    // ==========================================
+                    const gnssDataOnly = dataArray.filter(item => !item.detectors_data && item.signals_data && item.signals_data.length > 0);
+
+                    if (gnssDataOnly.length > 0) {
+                        const history = gnssDataOnly.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                        const labels = [];
+                        const dataPoints = [];
+                        const buffer = [];
+
+                        history.forEach(item => {
+                            let rawTime = item.timestamp;
+                            if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
+                            const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
+                            labels.push(timeStr);
+                            
+                            dataPoints.push(item.avg_cno_dbhz ?? item.avg_cno ?? 0);
+                            
+                            let sigMap = {};
+                            (item.signals_data || []).forEach(s => {
+                                sigMap[s.prn] = s.cno_dbhz ?? s.cno ?? 0;
+                            });
+                            buffer.unshift({ time: timeStr, signals: sigMap });
+                        });
+
+                        while (labels.length < MAX_HISTORY) labels.unshift('--:--');
+                        while (dataPoints.length < MAX_HISTORY) dataPoints.unshift(null);
+                        while (buffer.length < MAX_HISTORY) buffer.push({ time: '', signals: {} });
+
+                        let maxTimeMs = 0;
+                        let lastRaw = history[history.length - 1].timestamp;
+                        if (!lastRaw.endsWith('Z') && !lastRaw.includes('+')) lastRaw += 'Z';
+                        maxTimeMs = new Date(lastRaw).getTime();
+
+                        chartStateRef.current = {
+                            trendLabels: labels,
+                            trendData: dataPoints,
+                            skyplotCounts: calculateSkyplot(history[history.length - 1].signals_data),
+                            historyBuffer: buffer,
+                            lastMsgTime: maxTimeMs
+                        };
+                        setChartState({ ...chartStateRef.current });
+                    }
                 }
             } catch (e) { console.error("Lỗi nạp dữ liệu lịch sử", e); }
         };
-
         const handleGlobalUpdate = (event) => {
             const msg = event.detail; 
             
-            // 1. Nếu là dữ liệu Ublox/GNSS thường
-            const isPosition = 
-                msg.event_type === "telemetry_update" || 
-                msg.event_type === "position_update" || 
-                msg.event_type === "epoch" ||
-                msg.schema === "gnss.detect.ublox.v1" ||
-                msg.schema === "gnss.detect.epoch.v1" ||
-                (msg.data && msg.data.position !== undefined);
-
-            if (isPosition && msg.device_id === selectedDeviceId) {
+            // 🚨 ĐÃ SỬA: CHỈ gọi hàm vẽ biểu đồ khi nhận đúng gói tin CHỨA VỆ TINH
+            if (msg.event_type === "telemetry_update" && msg.device_id === selectedDeviceId) {
                 processNewTelemetry(msg.data); 
             }
 
-            // 2. MỚI: Nếu là dữ liệu cảnh báo SDR (Có chứa ảnh)
+            // Xử lý dữ liệu cảnh báo SDR (Có chứa ảnh) - Giữ nguyên
             if (msg.event_type === "sdr_detect" && msg.device_id === selectedDeviceId) {
                 if (msg.data && msg.data.spectrum_image_base64) {
                     setSdrData({
@@ -220,6 +236,7 @@ const Charts = () => {
         window.addEventListener('device_update', handleGlobalUpdate);
 
         return () => {
+            isMounted = false; 
             window.removeEventListener('device_update', handleGlobalUpdate);
         };
     }, [selectedDeviceId]);
@@ -323,7 +340,7 @@ const Charts = () => {
                                             ⚠️ Phát hiện: {sdrData.threatClass}
                                         </span>
                                         <span style={{ color: '#f59e0b', fontSize: '1.1rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '4px 12px', borderRadius: '6px' }}>
-                                            Độ tự tin (AI): {(sdrData.confidence * 100).toFixed(1)}%
+                                            Độ tự tin (AI): {(sdrData.confidence <= 1.0 ? sdrData.confidence * 100 : sdrData.confidence).toFixed(1)}%
                                         </span>
                                         <span style={{ color: '#8b8d93', fontSize: '1.1rem', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '4px 12px', borderRadius: '6px' }}>
                                             {(() => {
