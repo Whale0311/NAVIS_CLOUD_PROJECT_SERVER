@@ -40,11 +40,11 @@ const Charts = () => {
     const [sdrData, setSdrData] = useState(null);
     
     const chartStateRef = useRef({
-        trendLabels: Array(MAX_HISTORY).fill('--:--'),
-        trendData: Array(MAX_HISTORY).fill(null),
+        trendLabels: [], // Đổi thành mảng rỗng thay vì Array(60).fill...
+        trendData: [], 
         skyplotCounts: [0, 0, 0, 0, 0, 0], 
-        historyBuffer: Array(MAX_HISTORY).fill({ time: '', signals: {} }),
-        lastMsgTime: 0 // 🚨 THÊM BIẾN NÀY: Lưu lại thời gian của gói tin mới nhất
+        historyBuffer: [],
+        lastMsgTime: 0 
     });
     
     const [chartState, setChartState] = useState(chartStateRef.current);
@@ -56,12 +56,11 @@ const Charts = () => {
         let rawTime = apiData.timestamp || apiData.event_time || new Date().toISOString();
         if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
         
-        const msgTimestamp = new Date(rawTime).getTime(); // Lấy Timestamp dạng số mili-giây
+        const msgTimestamp = new Date(rawTime).getTime(); 
         const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
 
         const curr = chartStateRef.current;
 
-        // 🚨 CHỐNG "XUYÊN KHÔNG": Nếu gói tin này sinh ra trước gói tin mới nhất trên biểu đồ -> BỎ QUA!
         if (msgTimestamp < curr.lastMsgTime) {
             console.warn(`⏳ Bỏ qua gói tin cũ bị trễ mạng: ${timeStr}`);
             return; 
@@ -70,27 +69,35 @@ const Charts = () => {
         const signals = apiData.signals || apiData.signals_data || [];
         const currentCno = apiData.summary?.avg_cno_dbhz ?? apiData.avg_cno_dbhz ?? apiData.avg_cno ?? 0;
 
-        const newLabels = [...curr.trendLabels.slice(1), timeStr];
-        const newData = [...curr.trendData.slice(1), currentCno]; 
-        
         let sigMap = {};
         signals.forEach(s => {
             sigMap[s.prn] = s.cno_dbhz ?? s.cno ?? 0; 
         });
-        const newBuffer = [{ time: timeStr, signals: sigMap }, ...curr.historyBuffer.slice(0, -1)];
+
+        // 🚨 THAY ĐỔI: Dùng cửa sổ trượt linh hoạt
+        const newLabels = curr.trendLabels.length >= MAX_HISTORY 
+            ? [...curr.trendLabels.slice(1), timeStr] 
+            : [...curr.trendLabels, timeStr];
+
+        const newData = curr.trendData.length >= MAX_HISTORY 
+            ? [...curr.trendData.slice(1), currentCno] 
+            : [...curr.trendData, currentCno]; 
+        
+        const newBuffer = curr.historyBuffer.length >= MAX_HISTORY 
+            ? [{ time: timeStr, signals: sigMap }, ...curr.historyBuffer.slice(0, -1)] 
+            : [{ time: timeStr, signals: sigMap }, ...curr.historyBuffer];
 
         chartStateRef.current = {
             trendLabels: newLabels,
             trendData: newData,
             skyplotCounts: calculateSkyplot(signals),
             historyBuffer: newBuffer,
-            lastMsgTime: msgTimestamp // 🚨 Cập nhật lại kỷ lục thời gian mới nhất
+            lastMsgTime: msgTimestamp 
         };
 
         setChartState({ ...chartStateRef.current });
         setIsLive(true); 
     };
-    // ==========================================
     // 1. LẤY DANH SÁCH THIẾT BỊ LÚC LOAD TRANG
     // ==========================================
     useEffect(() => {
@@ -122,10 +129,11 @@ const Charts = () => {
         let isMounted = true; 
         // Reset state khi đổi thiết bị
         chartStateRef.current = {
-            trendLabels: Array(MAX_HISTORY).fill('--:--'),
-            trendData: Array(MAX_HISTORY).fill(null),
-            skyplotCounts: [0, 0, 0, 0],
-            historyBuffer: Array(MAX_HISTORY).fill({ time: '', signals: {} })
+            trendLabels: [],
+            trendData: [],
+            skyplotCounts: [0, 0, 0, 0, 0, 0],
+            historyBuffer: [],
+            lastMsgTime: 0
         };
         setChartState(chartStateRef.current);
         setIsLive(false);
@@ -134,82 +142,90 @@ const Charts = () => {
         const loadHistory = async () => {
             const token = localStorage.getItem("navis_token") || localStorage.getItem("access_token");
             try {
-                const res = await fetch(`/api/telemetry/devices/${selectedDeviceId}?limit=${MAX_HISTORY}`, {
-                    headers: { "Authorization": `Bearer ${token}` }
-                });
-                
-                if (!res.ok) throw new Error("Không thể tải lịch sử dữ liệu");
-                const dataArray = await res.json();
-                console.log("🔍 API Lịch sử trả về:", dataArray); // Thêm dòng này
+                // 1. GỌI 2 API SONG SONG (Tối ưu tốc độ)
+                const [resTele, resSdr] = await Promise.all([
+                    fetch(`/api/telemetry/devices/${selectedDeviceId}?limit=${MAX_HISTORY}`, {
+                        headers: { "Authorization": `Bearer ${token}` }
+                    }),
+                    // Lưu ý: Đảm bảo Backend của bạn đã có route này như hướng dẫn ở bước trước
+                    fetch(`/api/telemetry/devices/${selectedDeviceId}/latest_sdr`, { 
+                        headers: { "Authorization": `Bearer ${token}` }
+                    })
+                ]);
+
                 if (!isMounted) return;
 
-                if (dataArray && dataArray.length > 0) {
-                    
-                    // ==========================================
-                    // 1. TÌM ẢNH SDR TRONG TOÀN BỘ LỊCH SỬ
-                    // ==========================================
-                    const latestSdr = [...dataArray].reverse().find(
-                        item => item.detectors_data && item.detectors_data.spectrum_image_base64
-                    );
-
-                    if (latestSdr) {
+                // ==========================================
+                // 2. XỬ LÝ ẢNH SDR (TỪ API ALARM)
+                // ==========================================
+                if (resSdr.ok) {
+                    const sdrDataApi = await resSdr.json();
+                    if (sdrDataApi && sdrDataApi.spectrum_image_base64) {
                         setSdrData({
-                            image: latestSdr.detectors_data.spectrum_image_base64,
-                            threatClass: latestSdr.detectors_data.class || latestSdr.status || "Unknown",
-                            confidence: latestSdr.detectors_data.confidence || 0,
-                            time: latestSdr.timestamp
+                            image: sdrDataApi.spectrum_image_base64,
+                            threatClass: sdrDataApi.class || "Unknown",
+                            confidence: sdrDataApi.confidence || 0,
+                            time: sdrDataApi.event_time || new Date().toISOString()
                         });
                     } else {
                         setSdrData(null);
                     }
-
-                    // ==========================================
-                    // 2. 🚨 SỬA LỖI MẤT DÒNG: LỌC BỎ CÁC BẢN GHI SDR AI KHỎI BIỂU ĐỒ
-                    // Chỉ giữ lại các bản ghi GNSS thực sự có chứa tín hiệu vệ tinh
-                    // ==========================================
-                    const gnssDataOnly = dataArray.filter(item => !item.detectors_data && item.signals_data && item.signals_data.length > 0);
-
-                    if (gnssDataOnly.length > 0) {
-                        const history = gnssDataOnly.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                        const labels = [];
-                        const dataPoints = [];
-                        const buffer = [];
-
-                        history.forEach(item => {
-                            let rawTime = item.timestamp;
-                            if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
-                            const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
-                            labels.push(timeStr);
-                            
-                            dataPoints.push(item.avg_cno_dbhz ?? item.avg_cno ?? 0);
-                            
-                            let sigMap = {};
-                            (item.signals_data || []).forEach(s => {
-                                sigMap[s.prn] = s.cno_dbhz ?? s.cno ?? 0;
-                            });
-                            buffer.unshift({ time: timeStr, signals: sigMap });
-                        });
-
-                        while (labels.length < MAX_HISTORY) labels.unshift('--:--');
-                        while (dataPoints.length < MAX_HISTORY) dataPoints.unshift(null);
-                        while (buffer.length < MAX_HISTORY) buffer.push({ time: '', signals: {} });
-
-                        let maxTimeMs = 0;
-                        let lastRaw = history[history.length - 1].timestamp;
-                        if (!lastRaw.endsWith('Z') && !lastRaw.includes('+')) lastRaw += 'Z';
-                        maxTimeMs = new Date(lastRaw).getTime();
-
-                        chartStateRef.current = {
-                            trendLabels: labels,
-                            trendData: dataPoints,
-                            skyplotCounts: calculateSkyplot(history[history.length - 1].signals_data),
-                            historyBuffer: buffer,
-                            lastMsgTime: maxTimeMs
-                        };
-                        setChartState({ ...chartStateRef.current });
-                    }
+                } else {
+                    setSdrData(null);
                 }
-            } catch (e) { console.error("Lỗi nạp dữ liệu lịch sử", e); }
+
+                // ==========================================
+                // 3. XỬ LÝ BIỂU ĐỒ GNSS (TỪ API TELEMETRY)
+                // ==========================================
+                if (!resTele.ok) throw new Error("Không thể tải lịch sử dữ liệu");
+                const dataArray = await resTele.json();
+                console.log("🔍 API Lịch sử trả về:", dataArray);
+
+                if (dataArray && dataArray.length > 0) {
+                    // Dữ liệu giờ đã SẠCH (không còn rác AI). 
+                    // Vẫn giữ lại các bản ghi bị Jamming (cno=0) để vẽ màu xanh.
+                    const history = dataArray.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    
+                    const labels = [];
+                    const dataPoints = [];
+                    const buffer = [];
+
+                    history.forEach(item => {
+                        let rawTime = item.timestamp;
+                        if (!rawTime.endsWith('Z') && !rawTime.includes('+')) rawTime += 'Z';
+                        const timeStr = new Date(rawTime).toLocaleTimeString('vi-VN');
+                        labels.push(timeStr);
+                        
+                        dataPoints.push(item.avg_cno_dbhz ?? item.avg_cno ?? 0);
+                        
+                        let sigMap = {};
+                        // Bọc lót cả 2 trường hợp tên biến là signals hoặc signals_data
+                        (item.signals_data || item.signals || []).forEach(s => {
+                            sigMap[s.prn] = s.cno_dbhz ?? s.cno ?? 0;
+                        });
+                        buffer.unshift({ time: timeStr, signals: sigMap });
+                    });
+
+                    let maxTimeMs = 0;
+                    let lastRaw = history[history.length - 1].timestamp;
+                    if (!lastRaw.endsWith('Z') && !lastRaw.includes('+')) lastRaw += 'Z';
+                    maxTimeMs = new Date(lastRaw).getTime();
+
+                    // Lấy signals của bản ghi cuối cùng cho Skyplot
+                    const lastSignals = history[history.length - 1].signals_data || history[history.length - 1].signals;
+
+                    chartStateRef.current = {
+                        trendLabels: labels,
+                        trendData: dataPoints,
+                        skyplotCounts: calculateSkyplot(lastSignals),
+                        historyBuffer: buffer,
+                        lastMsgTime: maxTimeMs
+                    };
+                    setChartState({ ...chartStateRef.current });
+                }
+            } catch (e) { 
+                console.error("Lỗi nạp dữ liệu lịch sử", e); 
+            }
         };
         const handleGlobalUpdate = (event) => {
             const msg = event.detail; 
@@ -280,7 +296,9 @@ const Charts = () => {
     let xLabels = Array.from(activeSats).sort();
     let zMatrix = chartState.historyBuffer.map(item => xLabels.map(prn => item.signals[prn] || 15));
     let yLabels = chartState.historyBuffer.map(item => item.time);
-
+    if (xLabels.length === 0) xLabels = ['--'];
+    if (yLabels.length === 0) yLabels = ['--:--'];
+    if (zMatrix.length === 0) zMatrix = [[15]];
     return (
             <div className="dashboard-container">
                 <div className="header-section">

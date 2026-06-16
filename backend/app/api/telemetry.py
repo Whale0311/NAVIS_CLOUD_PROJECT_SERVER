@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from typing import List, Optional # Bổ sung Optional để cho phép trả về null
 
-from app.models.schema import Device, Telemetry, User
+from app.models.schema import Device, Telemetry, User, Alarm
 from app.schemas import TelemetryCreate, TelemetryResponse
 from app.core.database import get_db
 
@@ -136,3 +136,20 @@ def get_latest_telemetry(
         return None
 
     return latest
+@router.get("/devices/{device_id_str}/latest_sdr")
+def get_latest_sdr_image(device_id_str: str, db: Session = Depends(get_db)):
+    # Tìm device
+    device = db.query(Device).filter(Device.device_id == device_id_str).first()
+    if not device:
+        raise HTTPException(status_code=404)
+        
+    # Lấy Alarm mới nhất CÓ CHỨA ẢNH
+    latest_alarm = db.query(Alarm).filter(
+        Alarm.device_id == device.id,
+        Alarm.detectors_data.isnot(None)
+    ).order_by(Alarm.created_at.desc()).first()
+    
+    if not latest_alarm:
+        return None
+        
+    return latest_alarm.detectors_data

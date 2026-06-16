@@ -108,8 +108,6 @@ class Telemetry(Base):
     status = Column(String, nullable=True)
 
     signals_data = Column(JSON) 
-    detectors_data = Column(JSON, nullable=True)
-
     device = relationship("Device", back_populates="telemetries")
 
 
@@ -123,7 +121,7 @@ class Alarm(Base):
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     resolved_at = Column(DateTime, nullable=True)
-
+    detectors_data = Column(JSON, nullable=True)
     device = relationship("Device", back_populates="alarms")
 
 
