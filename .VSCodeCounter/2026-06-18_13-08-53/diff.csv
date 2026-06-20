@@ -1,0 +1,46 @@
+"filename", "language", "Markdown", "Python", "pip requirements", "JavaScript JSX", "JavaScript", "PostCSS", "XML", "JSON", "HTML", "comment", "blank", "total"
+"d:\Navis-Cloud-Project\backend\MQTT_data_schema.md", "Markdown", 1008, 0, 0, 0, 0, 0, 0, 0, 0, 0, 220, 1228
+"d:\Navis-Cloud-Project\backend\README.md", "Markdown", 475, 0, 0, 0, 0, 0, 0, 0, 0, 0, 113, 588
+"d:\Navis-Cloud-Project\backend\app\api\__init__.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1
+"d:\Navis-Cloud-Project\backend\app\api\auth.py", "Python", 0, 199, 0, 0, 0, 0, 0, 0, 0, 23, 40, 262
+"d:\Navis-Cloud-Project\backend\app\api\devices.py", "Python", 0, 468, 0, 0, 0, 0, 0, 0, 0, 118, 90, 676
+"d:\Navis-Cloud-Project\backend\app\api\telemetry.py", "Python", 0, 107, 0, 0, 0, 0, 0, 0, 0, 20, 28, 155
+"d:\Navis-Cloud-Project\backend\app\core\database.py", "Python", 0, 18, 0, 0, 0, 0, 0, 0, 0, 5, 5, 28
+"d:\Navis-Cloud-Project\backend\app\core\mqtt_config.py", "Python", 0, 20, 0, 0, 0, 0, 0, 0, 0, 2, 6, 28
+"d:\Navis-Cloud-Project\backend\app\core\security.py", "Python", 0, 23, 0, 0, 0, 0, 0, 0, 0, 8, 7, 38
+"d:\Navis-Cloud-Project\backend\app\core\ws_manager.py", "Python", 0, 24, 0, 0, 0, 0, 0, 0, 0, 4, 5, 33
+"d:\Navis-Cloud-Project\backend\app\main.py", "Python", 0, 94, 0, 0, 0, 0, 0, 0, 0, 17, 20, 131
+"d:\Navis-Cloud-Project\backend\app\models\schema.py", "Python", 0, 83, 0, 0, 0, 0, 0, 0, 0, 32, 36, 151
+"d:\Navis-Cloud-Project\backend\app\schemas.py", "Python", 0, 104, 0, 0, 0, 0, 0, 0, 0, 17, 28, 149
+"d:\Navis-Cloud-Project\backend\requirements.txt", "pip requirements", 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 12
+"d:\Navis-Cloud-Project\backend\worker\db_writer.py", "Python", 0, 41, 0, 0, 0, 0, 0, 0, 0, 8, 12, 61
+"d:\Navis-Cloud-Project\backend\worker\parsers\__init__.py", "Python", 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 4
+"d:\Navis-Cloud-Project\backend\worker\parsers\gnss_parser.py", "Python", 0, 97, 0, 0, 0, 0, 0, 0, 0, 11, 15, 123
+"d:\Navis-Cloud-Project\backend\worker\worker_main.py", "Python", 0, 397, 0, 0, 0, 0, 0, 0, 0, 38, 80, 515
+"d:\Navis-Cloud-Project\frontend\README.md", "Markdown", -802, 0, 0, 0, 0, 0, 0, 0, 0, 0, -152, -954
+"d:\Navis-Cloud-Project\frontend\eslint.config.js", "JavaScript", 0, 0, 0, 0, -28, 0, 0, 0, 0, 0, -2, -30
+"d:\Navis-Cloud-Project\frontend\index.html", "HTML", 0, 0, 0, 0, 0, 0, 0, 0, -13, 0, -1, -14
+"d:\Navis-Cloud-Project\frontend\package.json", "JSON", 0, 0, 0, 0, 0, 0, 0, -37, 0, 0, -1, -38
+"d:\Navis-Cloud-Project\frontend\public\Logo_Đại_học_Bách_Khoa_Hà_Nội.svg", "XML", 0, 0, 0, 0, 0, 0, -63, 0, 0, 0, -1, -64
+"d:\Navis-Cloud-Project\frontend\public\favicon.svg", "XML", 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1
+"d:\Navis-Cloud-Project\frontend\public\icons.svg", "XML", 0, 0, 0, 0, 0, 0, -24, 0, 0, 0, -1, -25
+"d:\Navis-Cloud-Project\frontend\src\App.jsx", "JavaScript JSX", 0, 0, 0, -67, 0, 0, 0, 0, 0, -23, -19, -109
+"d:\Navis-Cloud-Project\frontend\src\assets\react.svg", "XML", 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1
+"d:\Navis-Cloud-Project\frontend\src\assets\vite.svg", "XML", 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, -1, -2
+"d:\Navis-Cloud-Project\frontend\src\components\Layout.jsx", "JavaScript JSX", 0, 0, 0, -30, 0, 0, 0, 0, 0, -3, -4, -37
+"d:\Navis-Cloud-Project\frontend\src\components\Sidebar.jsx", "JavaScript JSX", 0, 0, 0, -78, 0, 0, 0, 0, 0, -7, -15, -100
+"d:\Navis-Cloud-Project\frontend\src\context\AuthContext.jsx", "JavaScript JSX", 0, 0, 0, -52, 0, 0, 0, 0, 0, -3, -9, -64
+"d:\Navis-Cloud-Project\frontend\src\context\SocketContext.jsx", "JavaScript JSX", 0, 0, 0, -70, 0, 0, 0, 0, 0, -8, -22, -100
+"d:\Navis-Cloud-Project\frontend\src\index.css", "PostCSS", 0, 0, 0, 0, 0, -571, 0, 0, 0, -56, -73, -700
+"d:\Navis-Cloud-Project\frontend\src\main.jsx", "JavaScript JSX", 0, 0, 0, -9, 0, 0, 0, 0, 0, 0, -2, -11
+"d:\Navis-Cloud-Project\frontend\src\pages\Alarms.jsx", "JavaScript JSX", 0, 0, 0, -227, 0, 0, 0, 0, 0, -8, -25, -260
+"d:\Navis-Cloud-Project\frontend\src\pages\Charts.jsx", "JavaScript JSX", 0, 0, 0, -332, 0, 0, 0, 0, 0, -34, -49, -415
+"d:\Navis-Cloud-Project\frontend\src\pages\Dashboard.jsx", "JavaScript JSX", 0, 0, 0, -239, 0, 0, 0, 0, 0, -18, -43, -300
+"d:\Navis-Cloud-Project\frontend\src\pages\DeviceDetail.jsx", "JavaScript JSX", 0, 0, 0, -429, 0, 0, 0, 0, 0, -24, -43, -496
+"d:\Navis-Cloud-Project\frontend\src\pages\Devices.jsx", "JavaScript JSX", 0, 0, 0, -348, 0, 0, 0, 0, 0, -7, -30, -385
+"d:\Navis-Cloud-Project\frontend\src\pages\Login.jsx", "JavaScript JSX", 0, 0, 0, -240, 0, 0, 0, 0, 0, -8, -25, -273
+"d:\Navis-Cloud-Project\frontend\src\pages\Map.jsx", "JavaScript JSX", 0, 0, 0, -335, 0, 0, 0, 0, 0, -33, -51, -419
+"d:\Navis-Cloud-Project\frontend\src\pages\SuperAdminDashboard.jsx", "JavaScript JSX", 0, 0, 0, -124, 0, 0, 0, 0, 0, -9, -16, -149
+"d:\Navis-Cloud-Project\frontend\src\pages\Users.jsx", "JavaScript JSX", 0, 0, 0, -401, 0, 0, 0, 0, 0, -17, -45, -463
+"d:\Navis-Cloud-Project\frontend\vite.config.js", "JavaScript", 0, 0, 0, 0, -17, 0, 0, 0, 0, -6, -1, -24
+"Total", "-", 681, 1677, 12, -2981, -45, -571, -90, -37, -13, 39, 77, -1251

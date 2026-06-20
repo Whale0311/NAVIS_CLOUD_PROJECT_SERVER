@@ -62,7 +62,18 @@ const DeviceDetail = () => {
         if (!safeStr.endsWith('Z') && !safeStr.includes('+')) safeStr += 'Z';
         return new Date(safeStr).toLocaleDateString('vi-VN');
     };
+    const formatFileSize = (bytes) => {
+        if (bytes === 0) return '0 B';
+        if (!bytes) return '--';
 
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+    
     const handleCmdChange = (e) => {
         const cmd = e.target.value;
         setSelectedCmd(cmd);
@@ -397,7 +408,7 @@ const DeviceDetail = () => {
                                                             .{f.file_type}
                                                         </span>
                                                     </td>
-                                                    <td style={{ padding: '15px', color: '#a3a3a3' }}>{(f.file_size_bytes / 1024).toFixed(2)} KB</td>
+                                                    <td style={{ padding: '15px', color: '#a3a3a3' }}>{formatFileSize(f.file_size_bytes)}</td>
                                                     <td style={{ padding: '15px', textAlign: 'right' }}>
                                                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                                                             <button 

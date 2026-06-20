@@ -355,7 +355,8 @@ class MQTTSubscriber:
                 device_id=device.id,
                 severity="Critical" if "jamming" in sdr_class.lower() or "spoofing" in sdr_class.lower() else "Warning",
                 event_desc=msg_desc,
-                status="Active"
+                status="Active",
+                detectors_data=raw_data  
             )
             db.add(alarm)
             

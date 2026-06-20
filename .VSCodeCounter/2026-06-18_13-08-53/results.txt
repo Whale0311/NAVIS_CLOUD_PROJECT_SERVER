@@ -1,0 +1,53 @@
+Date : 2026-06-18 13:08:53
+Directory : d:\Navis-Cloud-Project\backend
+Total : 18 files,  3172 codes, 303 comments, 708 blanks, all 4183 lines
+
+Languages
++------------------+------------+------------+------------+------------+------------+
+| language         | files      | code       | comment    | blank      | total      |
++------------------+------------+------------+------------+------------+------------+
+| Python           |         15 |      1,677 |        303 |        375 |      2,355 |
+| Markdown         |          2 |      1,483 |          0 |        333 |      1,816 |
+| pip requirements |          1 |         12 |          0 |          0 |         12 |
++------------------+------------+------------+------------+------------+------------+
+
+Directories
++--------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                         | files      | code       | comment    | blank      | total      |
++--------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                            |         18 |      3,172 |        303 |        708 |      4,183 |
+| . (Files)                                                    |          3 |      1,495 |          0 |        333 |      1,828 |
+| app                                                          |         11 |      1,140 |        246 |        266 |      1,652 |
+| app (Files)                                                  |          2 |        198 |         34 |         48 |        280 |
+| app\api                                                      |          4 |        774 |        161 |        159 |      1,094 |
+| app\core                                                     |          4 |         85 |         19 |         23 |        127 |
+| app\models                                                   |          1 |         83 |         32 |         36 |        151 |
+| worker                                                       |          4 |        537 |         57 |        109 |        703 |
+| worker (Files)                                               |          2 |        438 |         46 |         92 |        576 |
+| worker\parsers                                               |          2 |         99 |         11 |         17 |        127 |
++--------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++--------------------------------------------------------------+------------------+------------+------------+------------+------------+
+| filename                                                     | language         | code       | comment    | blank      | total      |
++--------------------------------------------------------------+------------------+------------+------------+------------+------------+
+| d:\Navis-Cloud-Project\backend\MQTT_data_schema.md           | Markdown         |      1,008 |          0 |        220 |      1,228 |
+| d:\Navis-Cloud-Project\backend\README.md                     | Markdown         |        475 |          0 |        113 |        588 |
+| d:\Navis-Cloud-Project\backend\app\api\__init__.py           | Python           |          0 |          0 |          1 |          1 |
+| d:\Navis-Cloud-Project\backend\app\api\auth.py               | Python           |        199 |         23 |         40 |        262 |
+| d:\Navis-Cloud-Project\backend\app\api\devices.py            | Python           |        468 |        118 |         90 |        676 |
+| d:\Navis-Cloud-Project\backend\app\api\telemetry.py          | Python           |        107 |         20 |         28 |        155 |
+| d:\Navis-Cloud-Project\backend\app\core\database.py          | Python           |         18 |          5 |          5 |         28 |
+| d:\Navis-Cloud-Project\backend\app\core\mqtt_config.py       | Python           |         20 |          2 |          6 |         28 |
+| d:\Navis-Cloud-Project\backend\app\core\security.py          | Python           |         23 |          8 |          7 |         38 |
+| d:\Navis-Cloud-Project\backend\app\core\ws_manager.py        | Python           |         24 |          4 |          5 |         33 |
+| d:\Navis-Cloud-Project\backend\app\main.py                   | Python           |         94 |         17 |         20 |        131 |
+| d:\Navis-Cloud-Project\backend\app\models\schema.py          | Python           |         83 |         32 |         36 |        151 |
+| d:\Navis-Cloud-Project\backend\app\schemas.py                | Python           |        104 |         17 |         28 |        149 |
+| d:\Navis-Cloud-Project\backend\requirements.txt              | pip requirements |         12 |          0 |          0 |         12 |
+| d:\Navis-Cloud-Project\backend\worker\db_writer.py           | Python           |         41 |          8 |         12 |         61 |
+| d:\Navis-Cloud-Project\backend\worker\parsers\__init__.py    | Python           |          2 |          0 |          2 |          4 |
+| d:\Navis-Cloud-Project\backend\worker\parsers\gnss_parser.py | Python           |         97 |         11 |         15 |        123 |
+| d:\Navis-Cloud-Project\backend\worker\worker_main.py         | Python           |        397 |         38 |         80 |        515 |
+| Total                                                        |                  |      3,172 |        303 |        708 |      4,183 |
++--------------------------------------------------------------+------------------+------------+------------+------------+------------+

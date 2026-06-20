@@ -1,0 +1,20 @@
+"filename", "language", "Markdown", "Python", "pip requirements", "comment", "blank", "total"
+"d:\Navis-Cloud-Project\backend\MQTT_data_schema.md", "Markdown", 1008, 0, 0, 0, 220, 1228
+"d:\Navis-Cloud-Project\backend\README.md", "Markdown", 475, 0, 0, 0, 113, 588
+"d:\Navis-Cloud-Project\backend\app\api\__init__.py", "Python", 0, 0, 0, 0, 1, 1
+"d:\Navis-Cloud-Project\backend\app\api\auth.py", "Python", 0, 199, 0, 23, 40, 262
+"d:\Navis-Cloud-Project\backend\app\api\devices.py", "Python", 0, 468, 0, 118, 90, 676
+"d:\Navis-Cloud-Project\backend\app\api\telemetry.py", "Python", 0, 107, 0, 20, 28, 155
+"d:\Navis-Cloud-Project\backend\app\core\database.py", "Python", 0, 18, 0, 5, 5, 28
+"d:\Navis-Cloud-Project\backend\app\core\mqtt_config.py", "Python", 0, 20, 0, 2, 6, 28
+"d:\Navis-Cloud-Project\backend\app\core\security.py", "Python", 0, 23, 0, 8, 7, 38
+"d:\Navis-Cloud-Project\backend\app\core\ws_manager.py", "Python", 0, 24, 0, 4, 5, 33
+"d:\Navis-Cloud-Project\backend\app\main.py", "Python", 0, 94, 0, 17, 20, 131
+"d:\Navis-Cloud-Project\backend\app\models\schema.py", "Python", 0, 83, 0, 32, 36, 151
+"d:\Navis-Cloud-Project\backend\app\schemas.py", "Python", 0, 104, 0, 17, 28, 149
+"d:\Navis-Cloud-Project\backend\requirements.txt", "pip requirements", 0, 0, 12, 0, 0, 12
+"d:\Navis-Cloud-Project\backend\worker\db_writer.py", "Python", 0, 41, 0, 8, 12, 61
+"d:\Navis-Cloud-Project\backend\worker\parsers\__init__.py", "Python", 0, 2, 0, 0, 2, 4
+"d:\Navis-Cloud-Project\backend\worker\parsers\gnss_parser.py", "Python", 0, 97, 0, 11, 15, 123
+"d:\Navis-Cloud-Project\backend\worker\worker_main.py", "Python", 0, 397, 0, 38, 80, 515
+"Total", "-", 1483, 1677, 12, 303, 708, 4183

@@ -354,7 +354,7 @@ const Devices = () => {
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                                 <button type="button" onClick={() => setIsAssignModalOpen(false)} style={{ background: 'transparent', color: '#8b8d93', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600' }}>Hủy</button>
-                                <button type="submit" style={{ background: '#a855f7', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700' }}>Lưu Phân Công</button>
+                                <button type="submit" style={{ background: '#a855f7', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700' }}>Xác Nhận</button>
                             </div>
                         </form>
                     </div>

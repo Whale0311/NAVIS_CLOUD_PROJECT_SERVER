@@ -1,0 +1,64 @@
+Date : 2026-06-18 13:07:30
+Directory : d:\Navis-Cloud-Project\frontend
+Total : 26 files,  4539 codes, 264 comments, 631 blanks, all 5434 lines
+
+Languages
++----------------+------------+------------+------------+------------+------------+
+| language       | files      | code       | comment    | blank      | total      |
++----------------+------------+------------+------------+------------+------------+
+| JavaScript JSX |         15 |      2,981 |        202 |        398 |      3,581 |
+| Markdown       |          1 |        802 |          0 |        152 |        954 |
+| PostCSS        |          1 |        571 |         56 |         73 |        700 |
+| XML            |          5 |         90 |          0 |          3 |         93 |
+| JavaScript     |          2 |         45 |          6 |          3 |         54 |
+| JSON           |          1 |         37 |          0 |          1 |         38 |
+| HTML           |          1 |         13 |          0 |          1 |         14 |
++----------------+------------+------------+------------+------------+------------+
+
+Directories
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                     | files      | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                        |         26 |      4,539 |        264 |        631 |      5,434 |
+| . (Files)                                                                |          5 |        897 |          6 |        157 |      1,060 |
+| public                                                                   |          3 |         88 |          0 |          2 |         90 |
+| src                                                                      |         18 |      3,554 |        258 |        472 |      4,284 |
+| src (Files)                                                              |          3 |        647 |         79 |         94 |        820 |
+| src\assets                                                               |          2 |          2 |          0 |          1 |          3 |
+| src\components                                                           |          2 |        108 |         10 |         19 |        137 |
+| src\context                                                              |          2 |        122 |         11 |         31 |        164 |
+| src\pages                                                                |          9 |      2,675 |        158 |        327 |      3,160 |
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++--------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| filename                                                                 | language       | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| d:\Navis-Cloud-Project\frontend\README.md                                | Markdown       |        802 |          0 |        152 |        954 |
+| d:\Navis-Cloud-Project\frontend\eslint.config.js                         | JavaScript     |         28 |          0 |          2 |         30 |
+| d:\Navis-Cloud-Project\frontend\index.html                               | HTML           |         13 |          0 |          1 |         14 |
+| d:\Navis-Cloud-Project\frontend\package.json                             | JSON           |         37 |          0 |          1 |         38 |
+| d:\Navis-Cloud-Project\frontend\public\Logo_Đại_học_Bách_Khoa_Hà_Nội.svg | XML            |         63 |          0 |          1 |         64 |
+| d:\Navis-Cloud-Project\frontend\public\favicon.svg                       | XML            |          1 |          0 |          0 |          1 |
+| d:\Navis-Cloud-Project\frontend\public\icons.svg                         | XML            |         24 |          0 |          1 |         25 |
+| d:\Navis-Cloud-Project\frontend\src\App.jsx                              | JavaScript JSX |         67 |         23 |         19 |        109 |
+| d:\Navis-Cloud-Project\frontend\src\assets\react.svg                     | XML            |          1 |          0 |          0 |          1 |
+| d:\Navis-Cloud-Project\frontend\src\assets\vite.svg                      | XML            |          1 |          0 |          1 |          2 |
+| d:\Navis-Cloud-Project\frontend\src\components\Layout.jsx                | JavaScript JSX |         30 |          3 |          4 |         37 |
+| d:\Navis-Cloud-Project\frontend\src\components\Sidebar.jsx               | JavaScript JSX |         78 |          7 |         15 |        100 |
+| d:\Navis-Cloud-Project\frontend\src\context\AuthContext.jsx              | JavaScript JSX |         52 |          3 |          9 |         64 |
+| d:\Navis-Cloud-Project\frontend\src\context\SocketContext.jsx            | JavaScript JSX |         70 |          8 |         22 |        100 |
+| d:\Navis-Cloud-Project\frontend\src\index.css                            | PostCSS        |        571 |         56 |         73 |        700 |
+| d:\Navis-Cloud-Project\frontend\src\main.jsx                             | JavaScript JSX |          9 |          0 |          2 |         11 |
+| d:\Navis-Cloud-Project\frontend\src\pages\Alarms.jsx                     | JavaScript JSX |        227 |          8 |         25 |        260 |
+| d:\Navis-Cloud-Project\frontend\src\pages\Charts.jsx                     | JavaScript JSX |        332 |         34 |         49 |        415 |
+| d:\Navis-Cloud-Project\frontend\src\pages\Dashboard.jsx                  | JavaScript JSX |        239 |         18 |         43 |        300 |
+| d:\Navis-Cloud-Project\frontend\src\pages\DeviceDetail.jsx               | JavaScript JSX |        429 |         24 |         43 |        496 |
+| d:\Navis-Cloud-Project\frontend\src\pages\Devices.jsx                    | JavaScript JSX |        348 |          7 |         30 |        385 |
+| d:\Navis-Cloud-Project\frontend\src\pages\Login.jsx                      | JavaScript JSX |        240 |          8 |         25 |        273 |
+| d:\Navis-Cloud-Project\frontend\src\pages\Map.jsx                        | JavaScript JSX |        335 |         33 |         51 |        419 |
+| d:\Navis-Cloud-Project\frontend\src\pages\SuperAdminDashboard.jsx        | JavaScript JSX |        124 |          9 |         16 |        149 |
+| d:\Navis-Cloud-Project\frontend\src\pages\Users.jsx                      | JavaScript JSX |        401 |         17 |         45 |        463 |
+| d:\Navis-Cloud-Project\frontend\vite.config.js                           | JavaScript     |         17 |          6 |          1 |         24 |
+| Total                                                                    |                |      4,539 |        264 |        631 |      5,434 |
++--------------------------------------------------------------------------+----------------+------------+------------+------------+------------+

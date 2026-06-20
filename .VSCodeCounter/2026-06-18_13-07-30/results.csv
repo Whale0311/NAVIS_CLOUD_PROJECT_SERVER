@@ -1,0 +1,28 @@
+"filename", "language", "JavaScript JSX", "JavaScript", "PostCSS", "XML", "Markdown", "JSON", "HTML", "comment", "blank", "total"
+"d:\Navis-Cloud-Project\frontend\README.md", "Markdown", 0, 0, 0, 0, 802, 0, 0, 0, 152, 954
+"d:\Navis-Cloud-Project\frontend\eslint.config.js", "JavaScript", 0, 28, 0, 0, 0, 0, 0, 0, 2, 30
+"d:\Navis-Cloud-Project\frontend\index.html", "HTML", 0, 0, 0, 0, 0, 0, 13, 0, 1, 14
+"d:\Navis-Cloud-Project\frontend\package.json", "JSON", 0, 0, 0, 0, 0, 37, 0, 0, 1, 38
+"d:\Navis-Cloud-Project\frontend\public\Logo_Đại_học_Bách_Khoa_Hà_Nội.svg", "XML", 0, 0, 0, 63, 0, 0, 0, 0, 1, 64
+"d:\Navis-Cloud-Project\frontend\public\favicon.svg", "XML", 0, 0, 0, 1, 0, 0, 0, 0, 0, 1
+"d:\Navis-Cloud-Project\frontend\public\icons.svg", "XML", 0, 0, 0, 24, 0, 0, 0, 0, 1, 25
+"d:\Navis-Cloud-Project\frontend\src\App.jsx", "JavaScript JSX", 67, 0, 0, 0, 0, 0, 0, 23, 19, 109
+"d:\Navis-Cloud-Project\frontend\src\assets\react.svg", "XML", 0, 0, 0, 1, 0, 0, 0, 0, 0, 1
+"d:\Navis-Cloud-Project\frontend\src\assets\vite.svg", "XML", 0, 0, 0, 1, 0, 0, 0, 0, 1, 2
+"d:\Navis-Cloud-Project\frontend\src\components\Layout.jsx", "JavaScript JSX", 30, 0, 0, 0, 0, 0, 0, 3, 4, 37
+"d:\Navis-Cloud-Project\frontend\src\components\Sidebar.jsx", "JavaScript JSX", 78, 0, 0, 0, 0, 0, 0, 7, 15, 100
+"d:\Navis-Cloud-Project\frontend\src\context\AuthContext.jsx", "JavaScript JSX", 52, 0, 0, 0, 0, 0, 0, 3, 9, 64
+"d:\Navis-Cloud-Project\frontend\src\context\SocketContext.jsx", "JavaScript JSX", 70, 0, 0, 0, 0, 0, 0, 8, 22, 100
+"d:\Navis-Cloud-Project\frontend\src\index.css", "PostCSS", 0, 0, 571, 0, 0, 0, 0, 56, 73, 700
+"d:\Navis-Cloud-Project\frontend\src\main.jsx", "JavaScript JSX", 9, 0, 0, 0, 0, 0, 0, 0, 2, 11
+"d:\Navis-Cloud-Project\frontend\src\pages\Alarms.jsx", "JavaScript JSX", 227, 0, 0, 0, 0, 0, 0, 8, 25, 260
+"d:\Navis-Cloud-Project\frontend\src\pages\Charts.jsx", "JavaScript JSX", 332, 0, 0, 0, 0, 0, 0, 34, 49, 415
+"d:\Navis-Cloud-Project\frontend\src\pages\Dashboard.jsx", "JavaScript JSX", 239, 0, 0, 0, 0, 0, 0, 18, 43, 300
+"d:\Navis-Cloud-Project\frontend\src\pages\DeviceDetail.jsx", "JavaScript JSX", 429, 0, 0, 0, 0, 0, 0, 24, 43, 496
+"d:\Navis-Cloud-Project\frontend\src\pages\Devices.jsx", "JavaScript JSX", 348, 0, 0, 0, 0, 0, 0, 7, 30, 385
+"d:\Navis-Cloud-Project\frontend\src\pages\Login.jsx", "JavaScript JSX", 240, 0, 0, 0, 0, 0, 0, 8, 25, 273
+"d:\Navis-Cloud-Project\frontend\src\pages\Map.jsx", "JavaScript JSX", 335, 0, 0, 0, 0, 0, 0, 33, 51, 419
+"d:\Navis-Cloud-Project\frontend\src\pages\SuperAdminDashboard.jsx", "JavaScript JSX", 124, 0, 0, 0, 0, 0, 0, 9, 16, 149
+"d:\Navis-Cloud-Project\frontend\src\pages\Users.jsx", "JavaScript JSX", 401, 0, 0, 0, 0, 0, 0, 17, 45, 463
+"d:\Navis-Cloud-Project\frontend\vite.config.js", "JavaScript", 0, 17, 0, 0, 0, 0, 0, 6, 1, 24
+"Total", "-", 2981, 45, 571, 90, 802, 37, 13, 264, 631, 5434
